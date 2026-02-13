@@ -1,0 +1,71 @@
+from typing import TypeAlias, Literal, TypeGuard, TypedDict
+from enum import StrEnum
+from rasterio.crs import CRS  # type: ignore
+from affine import Affine  # type: ignore
+
+CubeArrayFormat: TypeAlias = Literal["BIL", "BIP", "BSQ"]
+cube_array_foramts: list[CubeArrayFormat] = ["BIL", "BIP", "BSQ"]
+cube_array_suffix_map: dict[CubeArrayFormat, str] = {
+    "BIL": ".bil",
+    "BIP": ".bip",
+    "BSQ": ".bsq",
+}
+
+
+def is_valid_cubearrayformat(value: str) -> TypeGuard[CubeArrayFormat]:
+    return value in cube_array_foramts
+
+
+class NumpyDType(StrEnum):
+    UINT8 = "uint8"  # unsigned 8-bit integer
+    INT16 = "int16"  # signed 16-bit integer
+    INT32 = "int32"  # signed 32-bit integer
+    FLOAT32 = "float32"  # 32-bit floating point
+    FLOAT64 = "float64"  # 64-bit floating point
+    CPLX64 = "complex64"  # 64-bit complex number (2 x 32-bit floats)
+    CPLX128 = "complex128"  # 128-bit complex number (2 x 64-bit floats)
+    UINT16 = "uint16"  # unsigned 16-bit integer
+    UINT32 = "uint32"  # unsigned 32-bit integer
+    INT64 = "int64"  # signed 64-bit integer
+    UINT64 = "uint64"  # unsigned 64-bit integer
+
+
+NumpyDTypeLiteral: TypeAlias = Literal[
+    "UINT8",
+    "INT16",
+    "INT32",
+    "FLOAT32",
+    "FLOAT64",
+    "CPLX64",
+    "CPLX128",
+    "UINT16",
+    "UINT32",
+    "INT64",
+    "UINT64",
+]
+
+dtype_to_hdr_integer: dict[NumpyDType, int] = {
+    NumpyDType.UINT8: 1,
+    NumpyDType.INT16: 2,
+    NumpyDType.INT32: 3,
+    NumpyDType.FLOAT32: 4,
+    NumpyDType.FLOAT64: 5,
+    NumpyDType.CPLX64: 6,
+    NumpyDType.CPLX128: 9,
+    NumpyDType.UINT16: 12,
+    NumpyDType.UINT32: 13,
+    NumpyDType.INT64: 14,
+    NumpyDType.UINT64: 15,
+}
+hdr_integer_to_dtype = {v: k for k, v in dtype_to_hdr_integer.items()}
+
+
+class RasterioProfile(TypedDict):
+    width: int
+    height: int
+    count: int
+    driver: str
+    interleave: str
+    crs: CRS
+    transform: Affine
+    dtype: NumpyDType
