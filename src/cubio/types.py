@@ -2,6 +2,7 @@ from typing import TypeAlias, Literal, TypeGuard, TypedDict
 from enum import StrEnum
 from rasterio.crs import CRS  # type: ignore
 from affine import Affine  # type: ignore
+import numpy as np
 
 CubeArrayFormat: TypeAlias = Literal["BIL", "BIP", "BSQ"]
 cube_array_foramts: list[CubeArrayFormat] = ["BIL", "BIP", "BSQ"]
@@ -9,6 +10,9 @@ cube_array_suffix_map: dict[CubeArrayFormat, str] = {
     "BIL": ".bil",
     "BIP": ".bip",
     "BSQ": ".bsq",
+}
+suffix_to_format_map: dict[str, CubeArrayFormat] = {
+    v: k for k, v in cube_array_suffix_map.items()
 }
 
 
@@ -69,3 +73,27 @@ class RasterioProfile(TypedDict):
     crs: CRS
     transform: Affine
     dtype: NumpyDType
+
+
+LabelLike: TypeAlias = np.ndarray | list[float] | list[str]
+
+
+ImageSuffix: TypeAlias = Literal[".bsq", ".bil", ".bip", ".img", ".hdf5"]
+valid_image_suffixes: list[ImageSuffix] = [
+    ".bsq",
+    ".bil",
+    ".bip",
+    ".img",
+    ".hdf5",
+]
+image_suffix_priority: dict[ImageSuffix, int] = {
+    ".bil": 1,
+    ".bip": 2,
+    ".bsq": 3,
+    ".img": 4,
+    ".hdf5": 5,
+}
+
+
+def is_valid_image_suffix(value: str) -> TypeGuard[ImageSuffix]:
+    return value in valid_image_suffixes

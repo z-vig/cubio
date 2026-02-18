@@ -93,6 +93,32 @@ class GeotransformModel(BaseModel):
             col_rotation=affine_transform.d,
         )
 
+    @classmethod
+    def fromarraysize(
+        cls,
+        upper_left_latitiude: float,
+        upper_left_longitude: float,
+        lower_right_latitude: float,
+        lower_right_longitude: float,
+        height: int,
+        width: int,
+    ) -> Self:
+        upper_left_pt = PointModel(
+            x=upper_left_longitude, y=upper_left_latitiude
+        )
+        lower_right_pt = PointModel(
+            x=lower_right_longitude, y=lower_right_latitude
+        )
+        xres = abs(upper_left_pt.x - lower_right_pt.x) / width
+        yres = abs(upper_left_pt.y - lower_right_pt.y) / height
+        return cls(
+            upperleft=upper_left_pt,
+            xres=xres,
+            row_rotation=0,
+            yres=-yres,
+            col_rotation=0,
+        )
+
     def togdal(self) -> tuple[float, float, float, float, float, float]:
         """Returns a GDAL-style geotransform."""
         return (
@@ -171,7 +197,7 @@ class GeotransformModel(BaseModel):
         return PointModel(x=xpixel, y=ypixel)
 
     def generate_coords(
-        self, *, xsize: int, ysize: int
+        self, *, width: int, height: int
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Generates coordinate using the given geotransform for an array of size
@@ -189,10 +215,10 @@ class GeotransformModel(BaseModel):
         tuple[np.ndarray, np.ndarray]
             Tuple of (x-coordinates, y-coordinates).
         """
-        xcoords = np.empty(xsize, dtype=np.float32)
-        ycoords = np.empty(ysize, dtype=np.float32)
-        for nx in range(xsize):
+        xcoords = np.empty(width, dtype=np.float32)
+        ycoords = np.empty(height, dtype=np.float32)
+        for nx in range(width):
             xcoords[nx] = self.pixel_to_map(xpixel=nx, ypixel=0).x
-        for ny in range(ysize):
+        for ny in range(height):
             ycoords[ny] = self.pixel_to_map(xpixel=0, ypixel=ny).y
         return xcoords, ycoords

@@ -1,5 +1,5 @@
 # Built-ins
-from typing import TypedDict
+from typing import TypedDict, Literal
 from typing_extensions import Self
 from tempfile import NamedTemporaryFile
 from pathlib import Path
@@ -14,15 +14,21 @@ from pydantic import (
     model_validator,
     Field,
     field_validator,
+    PrivateAttr,
 )
 import rasterio as rio  # type: ignore
+import xarray as xr
 
 # Local Imports
 from cubio.types import (
     NumpyDType,
     CubeArrayFormat,
     is_valid_cubearrayformat,
+    suffix_to_format_map,
     RasterioProfile,
+    ImageSuffix,
+    is_valid_image_suffix,
+    image_suffix_priority,
 )
 from cubio.geotransform import GeotransformModel
 from cubio.envi_hdr_tools import (
@@ -30,9 +36,12 @@ from cubio.envi_hdr_tools import (
     replace_hdr_description,
     replace_shape_fields,
 )
+from cubio.cube_size_tools import CubeSize
+from cubio.cube_data import CubeData
 
 
 class ContextBuilder(TypedDict):
+    name: str
     description: str
     data_filename: Path
     ncols: int
@@ -45,6 +54,7 @@ class ContextBuilder(TypedDict):
     geotransform: GeotransformModel
     band_names: list[str]
     nodata: float | int
+    measurement_name: str
     measurement_units: str
     measurement_values: list[float]
     bad_bands: list[int]
@@ -52,6 +62,7 @@ class ContextBuilder(TypedDict):
 
 
 class CubeContext(BaseModel):
+    name: str = Field(..., description="A short name for the cube.")
     description: str = Field(
         ..., description="A description of the data cube."
     )
@@ -81,6 +92,11 @@ class CubeContext(BaseModel):
     )
     band_names: list[str] = Field(default_factory=list)
     nodata: float | int = Field(default=-999, description="The nodata value.")
+    measurement_name: str = Field(
+        default="Measurement",
+        description="Name that describes the nature of the measurement along "
+        "the cube z-axis.",
+    )
     measurement_units: str = Field(
         default="unitless", description="The measurement units."
     )
@@ -93,10 +109,15 @@ class CubeContext(BaseModel):
     id: UUID = Field(
         default_factory=uuid4, description="Unique ID of the cube object."
     )
+    _retrieval_path: Path | Literal["NoRetrieval"] = PrivateAttr(
+        default="NoRetrieval"
+    )
 
     @property
     def shape(self) -> tuple[int, int, int]:
-        return (self.nrows, self.ncols, self.nbands)
+        return CubeSize(
+            nrows=self.nrows, ncolumns=self.ncols, nbands=self.nbands
+        ).as_tuple(self.interleave)
 
     @classmethod
     def from_builder(cls, builder_dict: ContextBuilder) -> Self:
@@ -107,7 +128,9 @@ class CubeContext(BaseModel):
         """Convenience method for reading in the model from json file."""
         with open(savefp, "r") as f:
             json = f.read()
-        return cls.model_validate_json(json)
+        valid_model = cls.model_validate_json(json)
+        valid_model._retrieval_path = Path(savefp)
+        return valid_model
 
     @field_serializer("interleave", mode="plain")
     def lowercase(self, value: CubeArrayFormat) -> str:
@@ -129,9 +152,26 @@ class CubeContext(BaseModel):
             self.bad_bands = [1] * len(self.measurement_values)
         else:
             self.bad_bands = current_bbl
+
+        if len(self.bad_bands) != self.nbands:
+            print(self.bad_bands)
+            raise ValueError(
+                "Length of bad band list must match the number of bands."
+            )
+
         return self
 
-    def write_envi_hdr(self, dst: Path | str | None = None) -> None:
+    @model_validator(mode="after")
+    def check_measurement_values(self) -> Self:
+        if len(self.measurement_values) != self.nbands:
+            raise ValueError(
+                "Length of measurement values must match the number of bands."
+            )
+        return self
+
+    def write_envi_hdr(
+        self, dst: Path | str | None = None, use_image_name: bool = True
+    ) -> None:
         """
         Writes the model to a properly formatted ENVI header file.
 
@@ -151,7 +191,18 @@ class CubeContext(BaseModel):
             tf = NamedTemporaryFile(suffix=".hdr", delete=False)
             savefp = Path(tf.name)
         else:
-            savefp = Path(dst).with_suffix(".hdr")
+            savefp = Path(dst)
+
+        # Adding suffix based on the use_image_name option.
+        if use_image_name:
+            if savefp.is_dir():
+                savefp = Path(savefp, self.data_filename).with_suffix(".hdr")
+            else:
+                savefp = savefp.with_name(str(self.data_filename)).with_suffix(
+                    ".hdr"
+                )
+        else:
+            savefp = savefp.with_suffix(".hdr")
 
         # Need a temporary image and hdr file to write to. These will be empty.
         temp_img = savefp.with_name(f"_{savefp.name}").with_suffix(".img")
@@ -208,3 +259,61 @@ class CubeContext(BaseModel):
         json_str = self.model_dump_json(indent=2)
         with open(Path(savefp).with_suffix(".json"), "w") as f:
             f.write(json_str)
+
+    def lazy_load_data(self, search_dir: str | Path | None = None) -> CubeData:
+        load_from: Path
+        if (search_dir is not None) and (
+            self._retrieval_path == "NoRetrieval"
+        ):
+            load_from = Path(search_dir)
+        elif (self._retrieval_path != "NoRetrieval") and (search_dir is None):
+            load_from = self._retrieval_path.parent
+        else:
+            raise ValueError(
+                "If `savefp` is specified, the object must not have been"
+                "validated from disk."
+            )
+
+        if not load_from.is_dir():
+            raise ValueError(f"Search directory does not exist: {load_from}")
+
+        dat = CubeData(
+            self.name,
+            self.interleave,
+            z_labels=self.measurement_values,
+            z_name=self.measurement_name,
+            geotransform=self.geotransform,
+        )
+        candidate_image_data_files: list[tuple[Path, ImageSuffix]] = []
+        for i in load_from.iterdir():
+            if i.stem == str(self.data_filename):
+                if is_valid_image_suffix(i.suffix):
+                    candidate_image_data_files.append((i, i.suffix))
+
+        candidate_image_data_files.sort(
+            key=lambda item: image_suffix_priority[item[1]]
+        )
+
+        image_data_file = candidate_image_data_files[0][0]
+
+        interleave_test = suffix_to_format_map.get(image_data_file.suffix)
+
+        if (interleave_test is not None) and (
+            interleave_test != self.interleave
+        ):
+            raise ValueError(
+                f"Loaded data ({image_data_file}) does not match the"
+                f"registered interleave ({self.interleave})"
+            )
+
+        if image_data_file.suffix.lower() in [".img", ".bsq", ".bil", ".bip"]:
+            mmap = np.memmap(
+                image_data_file,
+                dtype=np.dtype(self.data_type),
+                shape=self.shape,
+            )
+            dat.array = xr.DataArray(mmap)
+        elif image_data_file.suffix.lower() == ".hdf5":
+            raise NotImplementedError("HDF5 file not implemented yet.")
+
+        return dat
