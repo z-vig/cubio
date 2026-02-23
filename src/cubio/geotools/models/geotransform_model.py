@@ -64,7 +64,7 @@ class GeotransformModel(BaseModel):
             upperleft=PointModel(x=0, y=0),
             xres=1,
             row_rotation=0,
-            yres=-1,
+            yres=1,
             col_rotation=0,
         )
 

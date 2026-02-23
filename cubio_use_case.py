@@ -32,46 +32,26 @@ def list_locals(local_call: dict[str, object]):
 
 
 if __name__ == "__main__":
+    # flake8: noqa
+
     import matplotlib.pyplot as plt
-    from cubio.geotransform import GeotransformModel
-    from scipy.interpolate import LinearNDInterpolator
+    from cubio.conevnience_functions import (
+        read_measurement_envi_file_context,
+        read_spectral_envi_file_context,
+    )
 
     tracemalloc.start()
 
-    cc = CubeContext.from_json("D:/cube_testing/M3G20090208T160125_LOC.json")
-    cub = cc.lazy_load_data()
-    cub.transpose_to("BIP")
-    ul_long, ul_lat = cub.array[0, 0, :2]
-    lr_long, lr_lat = cub.array[-1, -1, :2]
-    ur_long, ur_lat = cub.array[0, -1, :2]
+    rdn_fp = "D:/moon_data/m3/Gruithuisen_Region/M3G20090208T194335/pds_data/L1/M3G20090208T194335_V03_RDN.IMG"
+    loc_fp = "D:/moon_data/m3/Gruithuisen_Region/M3G20090208T194335/pds_data/L1/M3G20090208T194335_V03_LOC.IMG"
+    obs_fp = "D:/moon_data/m3/Gruithuisen_Region/M3G20090208T194335/pds_data/L1/M3G20090208T194335_V03_OBS.IMG"
 
-    # print(ul_long, ur_long)
-    # print((ul_long - ur_long) / cc.ncols)
-    # print(ul_lat, lr_lat)
-    gtrans = GeotransformModel.fromarraysize(
-        ul_lat, ul_long, lr_lat, lr_long, cc.nrows, cc.ncols
-    )
+    rdn_ctxt = read_spectral_envi_file_context(rdn_fp, "RDN")
+    loc_ctxt = read_measurement_envi_file_context(loc_fp, "LOC")
+    obs_ctxt = read_measurement_envi_file_context(obs_fp, "OBS")
 
-    long_vals = np.array(cub.array[:, :, 0])
-    long_vals = long_vals.reshape(long_vals.size)
-    lat_vals = np.array(cub.array[:, :, 1])
-    lat_vals = lat_vals.reshape(lat_vals.size)
-
-    pts = np.column_stack((long_vals, lat_vals))
-
-    interp = LinearNDInterpolator(
-        pts, 
-    )
-
-    # print(gtrans)
-    cub.geotransform = gtrans
-
-    diff_long = abs(cub.array[:, 0, 0] - cub.array[:, -1, 0])
-    plt.plot(cub.array[:, 0, 1], diff_long)
-    plt.xlabel("Latitude")
-    plt.ylabel("Width of Raster (In Longitude)")
-
-    # plt.plot(cub.array["Longitude"])
+    for i in [rdn_ctxt, loc_ctxt, obs_ctxt]:
+        i.write_envi_hdr(Path(rdn_fp).with_suffix(".hdr"))
 
     # list_locals(locals())
     print("\n===================\nMemory Allocation:")

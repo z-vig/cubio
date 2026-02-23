@@ -30,7 +30,7 @@ from cubio.types import (
     is_valid_image_suffix,
     image_suffix_priority,
 )
-from cubio.geotransform import GeotransformModel
+from cubio.geotools.models import GeotransformModel
 from cubio.envi_hdr_tools import (
     replace_hdr_band_names,
     replace_hdr_description,
@@ -114,10 +114,38 @@ class CubeContext(BaseModel):
     )
 
     @property
-    def shape(self) -> tuple[int, int, int]:
+    def shape(self) -> CubeSize:
         return CubeSize(
             nrows=self.nrows, ncolumns=self.ncols, nbands=self.nbands
-        ).as_tuple(self.interleave)
+        )
+
+    @property
+    def shape_tuple(self) -> tuple[int, int, int]:
+        return self.shape.as_tuple(self.interleave)
+
+    @property
+    def builder(self) -> ContextBuilder:
+        _builder: ContextBuilder = {
+            "name": self.name,
+            "description": self.description,
+            "data_filename": self.data_filename,
+            "ncols": self.ncols,
+            "nrows": self.nrows,
+            "nbands": self.nbands,
+            "hdr_off": self.hdr_off,
+            "data_type": self.data_type,
+            "interleave": self.interleave,
+            "crs": self.crs,
+            "geotransform": self.geotransform,
+            "band_names": self.band_names,
+            "nodata": self.nodata,
+            "measurement_name": self.measurement_name,
+            "measurement_units": self.measurement_units,
+            "measurement_values": self.measurement_values,
+            "bad_bands": self.bad_bands,
+            "id": self.id,
+        }
+        return _builder
 
     @classmethod
     def from_builder(cls, builder_dict: ContextBuilder) -> Self:
@@ -217,7 +245,8 @@ class CubeContext(BaseModel):
             "dtype": self.data_type,
             "crs": self.crs,
             "transform": self.geotransform.toaffine(),
-            "interleave": self.interleave.lower(),
+            "interleave": self.interleave,
+            "nodata": -999,
         }
 
         # A blank image write is needed. We just use the .hdr file.
@@ -270,7 +299,7 @@ class CubeContext(BaseModel):
             load_from = self._retrieval_path.parent
         else:
             raise ValueError(
-                "If `savefp` is specified, the object must not have been"
+                "If `savefp` is specified, the object must not have been "
                 "validated from disk."
             )
 
@@ -286,9 +315,10 @@ class CubeContext(BaseModel):
         )
         candidate_image_data_files: list[tuple[Path, ImageSuffix]] = []
         for i in load_from.iterdir():
-            if i.stem == str(self.data_filename):
-                if is_valid_image_suffix(i.suffix):
-                    candidate_image_data_files.append((i, i.suffix))
+            if i.stem == str(self.data_filename.stem):
+                suff = i.suffix.lower()
+                if is_valid_image_suffix(suff):
+                    candidate_image_data_files.append((i, suff))
 
         candidate_image_data_files.sort(
             key=lambda item: image_suffix_priority[item[1]]
@@ -310,10 +340,16 @@ class CubeContext(BaseModel):
             mmap = np.memmap(
                 image_data_file,
                 dtype=np.dtype(self.data_type),
-                shape=self.shape,
+                shape=self.shape_tuple,
             )
             dat.array = xr.DataArray(mmap)
         elif image_data_file.suffix.lower() == ".hdf5":
             raise NotImplementedError("HDF5 file not implemented yet.")
+        elif image_data_file.suffix.lower() == ".zarr":
+            arr = xr.open_dataarray(image_data_file, engine="zarr")
+            dat.yname = str(arr.dims[0])
+            dat.xname = str(arr.dims[1])
+            dat.zname = str(arr.dims[2])
+            dat.array = arr
 
         return dat

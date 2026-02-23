@@ -1,4 +1,4 @@
-from typing import TypeAlias, Literal, TypeGuard, TypedDict
+from typing import TypeAlias, Literal, TypeGuard, TypedDict, NotRequired
 from enum import StrEnum
 from rasterio.crs import CRS  # type: ignore
 from affine import Affine  # type: ignore
@@ -63,23 +63,30 @@ dtype_to_hdr_integer: dict[NumpyDType, int] = {
 }
 hdr_integer_to_dtype = {v: k for k, v in dtype_to_hdr_integer.items()}
 
+RasterioDriver: TypeAlias = Literal["ENVI", "GTiff", "ISIS3"]
+rasterio_drivers: list[RasterioDriver] = ["ENVI", "GTiff", "ISIS3"]
+
 
 class RasterioProfile(TypedDict):
     width: int
     height: int
     count: int
-    driver: str
-    interleave: str
+    driver: RasterioDriver
+    interleave: NotRequired[CubeArrayFormat]
     crs: CRS
     transform: Affine
     dtype: NumpyDType
+    nodata: float | int
 
 
 LabelLike: TypeAlias = np.ndarray | list[float] | list[str]
 
 
-ImageSuffix: TypeAlias = Literal[".bsq", ".bil", ".bip", ".img", ".hdf5"]
+ImageSuffix: TypeAlias = Literal[
+    ".zarr", ".bsq", ".bil", ".bip", ".img", ".hdf5"
+]
 valid_image_suffixes: list[ImageSuffix] = [
+    ".zarr",
     ".bsq",
     ".bil",
     ".bip",
@@ -87,6 +94,7 @@ valid_image_suffixes: list[ImageSuffix] = [
     ".hdf5",
 ]
 image_suffix_priority: dict[ImageSuffix, int] = {
+    ".zarr": 0,
     ".bil": 1,
     ".bip": 2,
     ".bsq": 3,

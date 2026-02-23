@@ -8,7 +8,7 @@ import rasterio as rio  # type: ignore
 # Local Imports
 from cubio.types import RasterioProfile, NumpyDType
 from cubio.cube_context import CubeContext, ContextBuilder
-from cubio.geotransform import GeotransformModel
+from cubio.geotools.models import GeotransformModel
 from cubio.data.crs_wkt_strings import GeographicCRS
 from cubio.envi_hdr_tools import (
     extract_hdr_wavelengths,
@@ -19,6 +19,26 @@ from cubio.envi_hdr_tools import (
 
 
 def read_spectral_envi_file_context(fp: Path | str, name: str) -> CubeContext:
+    """
+    Reads the context data from an ENVI cube file representing spectral data.
+
+    Parameters
+    ----------
+    fp : Path | str
+        File path to ENVI cube.
+    name : str
+        Name of the CubeContext object.
+
+    Returns
+    -------
+    CubeContext
+        Relevant context data about the cube.
+
+    Raises
+    ------
+    ValueError
+        If the .hdr file does not contain a wavelength field.
+    """
 
     with rio.open(fp, "r") as f:
         prf: RasterioProfile = f.profile
@@ -67,6 +87,23 @@ def read_spectral_envi_file_context(fp: Path | str, name: str) -> CubeContext:
 def read_measurement_envi_file_context(
     fp: Path | str, name: str
 ) -> CubeContext:
+    """
+    Reads the context data from an envi file that does not represent a spectral
+    dataset, but some other measurement (Location, Geometry, Parameters,
+    etc...)
+
+    Parameters
+    ----------
+    fp : Path | str
+        File path to the ENVI cube.
+    name : str
+        Name of the CubeContext object.
+
+    Returns
+    -------
+    CubeContext
+        Resulting context data from the cube.
+    """
 
     with rio.open(fp, "r") as f:
         prf: RasterioProfile = f.profile

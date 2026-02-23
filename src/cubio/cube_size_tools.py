@@ -1,5 +1,6 @@
 # Built-ins
 from dataclasses import dataclass
+from typing import Literal
 
 # Dependencies
 import numpy as np
@@ -38,7 +39,9 @@ def get_cube_size(
 
 
 def transpose_cube(
-    src: CubeArrayFormat, dst: CubeArrayFormat, arr: xr.DataArray
+    src: CubeArrayFormat,
+    dst: CubeArrayFormat | Literal["RASTERIO"],
+    arr: xr.DataArray,
 ):
     if src == "BIL":
         if dst == "BIL":
@@ -47,6 +50,8 @@ def transpose_cube(
             return arr.transpose(*(arr.dims[0], arr.dims[2], arr.dims[1]))
         elif dst == "BSQ":
             return arr.transpose(*(arr.dims[1], arr.dims[2], arr.dims[0]))
+        elif dst == "RASTERIO":
+            return arr.transpose(*(arr.dims[1], arr.dims[0], arr.dims[2]))
     elif src == "BIP":
         if dst == "BIL":
             return arr.transpose(*(arr.dims[0], arr.dims[2], arr.dims[1]))
@@ -54,6 +59,8 @@ def transpose_cube(
             return arr
         elif dst == "BSQ":
             return arr.transpose(*(arr.dims[2], arr.dims[1], arr.dims[0]))
+        elif dst == "RASTERIO":
+            return arr.transpose(*(arr.dims[2], arr.dims[0], arr.dims[1]))
     elif src == "BSQ":
         if dst == "BIL":
             return arr.transpose(*(arr.dims[2], arr.dims[0], arr.dims[1]))
@@ -61,3 +68,5 @@ def transpose_cube(
             return arr.transpose(*(arr.dims[2], arr.dims[1], arr.dims[0]))
         elif dst == "BSQ":
             return arr
+        elif dst == "RASTERIO":
+            return arr.transpose(*(arr.dims[0], arr.dims[2], arr.dims[1]))

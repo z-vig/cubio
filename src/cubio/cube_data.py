@@ -1,5 +1,6 @@
 # Built-Ins
 from typing import Optional
+from typing_extensions import Self
 from warnings import warn
 
 # Dependencies
@@ -8,8 +9,58 @@ import numpy as np
 
 # Local Imports
 from cubio.types import LabelLike, CubeArrayFormat
-from cubio.geotransform import GeotransformModel
-from cubio.cube_size_tools import get_cube_size, transpose_cube
+from cubio.geotools.models import GeotransformModel
+from cubio.cube_size_tools import get_cube_size, transpose_cube, CubeSize
+
+
+class CubeMask:
+    def __init__(
+        self,
+        *,
+        shape: CubeSize,
+        xy_mask: np.ndarray | xr.DataArray | None = None,
+        z_mask: np.ndarray | xr.DataArray | None = None,
+    ) -> None:
+        self.shape = shape
+        if (xy_mask is not None) and (xy_mask.dtype is not bool):
+            raise ValueError("XY Mask must be of dtype: bool")
+        if (z_mask is not None) and (z_mask.dtype is not bool):
+            raise ValueError("Z Mask must be of dtype: bool")
+
+        self._xymask = xy_mask
+        self._zmask = z_mask
+
+    @classmethod
+    def transparent(cls, shape: CubeSize) -> Self:
+        return cls(
+            shape=shape,
+            xy_mask=np.ones((shape.nrows, shape.ncolumns), dtype=bool),
+            z_mask=np.ones(shape.nbands, dtype=bool),
+        )
+
+    @property
+    def xymask(self) -> np.ndarray | xr.DataArray:
+        if self._xymask is None:
+            raise ValueError("XY Mask not set yet.")
+        return self._xymask
+
+    @xymask.setter
+    def xymask(self, value: np.ndarray | xr.DataArray) -> None:
+        if value.dtype is not bool:
+            raise ValueError("XY Mask must be of type: bool")
+        self._xymask = value
+
+    @property
+    def zmask(self) -> np.ndarray | xr.DataArray:
+        if self._zmask is None:
+            raise ValueError("XY Mask not set yet.")
+        return self._zmask
+
+    @zmask.setter
+    def zmask(self, value: np.ndarray | xr.DataArray) -> None:
+        if value.dtype is not bool:
+            raise ValueError("Z Mask must be of type: bool")
+        self._zmask = value
 
 
 class CubeData:
@@ -36,9 +87,9 @@ class CubeData:
         self._ylbl = y_labels
         self._zlbl = z_labels
 
-        self._xname = x_name
-        self._yname = y_name
-        self._zname = z_name
+        self.xname = x_name
+        self.yname = y_name
+        self.zname = z_name
 
         if self._gtrans is not None:
             if (self._xlbl is not None) | (self._ylbl is not None):
@@ -46,8 +97,34 @@ class CubeData:
                     "A geotransform was provided, so any provided x and y"
                     f" labels will be overwritten for {self.name}"
                 )
-            self._xname = "Longitude"
-            self._yname = "Latitude"
+            self.xname = "Longitude"
+            self.yname = "Latitude"
+
+            self._mask: CubeMask | None = None
+
+    @property
+    def mask(self) -> CubeMask:
+        if self._mask is None:
+            return CubeMask.transparent(self.shape)
+        return self._mask
+
+    @mask.setter
+    def mask(self, value: CubeMask) -> None:
+        self._mask = value
+
+    @property
+    def shape(self) -> CubeSize:
+        if (
+            (self._ylbl is None)
+            or (self._xlbl is None)
+            or (self._zlbl is None)
+        ):
+            raise ValueError("Cube Data is not set yet.")
+        return CubeSize(
+            nrows=len(self._ylbl),
+            ncolumns=len(self._xlbl),
+            nbands=len(self._zlbl),
+        )
 
     @property
     def array(self) -> xr.DataArray:
@@ -77,20 +154,20 @@ class CubeData:
 
         dims: tuple[str, str, str]
         if self.fmt == "BIL":
-            dims = (self._yname, self._zname, self._xname)
+            dims = (self.yname, self.zname, self.xname)
         elif self.fmt == "BIP":
-            dims = (self._yname, self._xname, self._zname)
+            dims = (self.yname, self.xname, self.zname)
         elif self.fmt == "BSQ":
-            dims = (self._zname, self._xname, self._yname)
+            dims = (self.zname, self.xname, self.yname)
         else:
             raise ValueError("Invalid axis names.")
 
         self._array = xr.DataArray(
             value.data,
             coords={
-                self._xname: self._xlbl,
-                self._yname: self._ylbl,
-                self._zname: self._zlbl,
+                self.xname: self._xlbl,
+                self.yname: self._ylbl,
+                self.zname: self._zlbl,
             },
             dims=dims,
         )
@@ -111,3 +188,6 @@ class CubeData:
         self.fmt = format
         new_arr = transpose_cube(old_format, format, self.array)
         self.array = new_arr
+
+    def transpose_to_rasterio(self) -> xr.DataArray:
+        return transpose_cube(self.fmt, "RASTERIO", self.array)
