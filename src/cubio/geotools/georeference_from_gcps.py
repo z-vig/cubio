@@ -14,6 +14,7 @@ from .georeference_satellite_swath import (
 )
 from .generate_geoloc_backplane import latlong_from_gcp_group
 from cubio.cube_context import CubeContext
+from cubio.cube_data import CubeData
 from cubio.geotools.models.gcp_model import ImageOffset
 
 
@@ -21,6 +22,7 @@ def georeference_image(
     cubio_json_file: Path | str,
     gcps_file: Path | str,
     prj_definition: ProjectionDefinition,
+    unref_cube_array: np.ndarray | None = None,
     georef_extent: BoundingBoxModel | None = None,
     save_directory: Path | str | None = None,
     new_name: str | None = None,
@@ -30,8 +32,12 @@ def georeference_image(
 ) -> CubeContext:
     # ---- Reading Image Context and Lazy Loading ----
     unreferenced_context = CubeContext.from_json(cubio_json_file)
-    unref_cube = unreferenced_context.lazy_load_data()
-    unref_cube.transpose_to("BIP")
+    if unref_cube_array is None:
+        unref_cube = unreferenced_context.lazy_load_data()
+        unref_cube.transpose_to("BIP")
+    elif unref_cube_array is not None:
+        unref_cube = CubeData("unref_cube", format="BIP")
+        unref_cube.array = xr.DataArray(unref_cube_array)
 
     # ---- Cropping to extent of GCP group ----
     gcp_group = GCPGroup.from_gcps_file(gcps_file)
