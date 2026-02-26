@@ -15,7 +15,7 @@ from .georeference_satellite_swath import (
 from .generate_geoloc_backplane import latlong_from_gcp_group
 from cubio.cube_context import CubeContext
 from cubio.cube_data import CubeData
-from cubio.geotools.models.gcp_model import ImageOffset
+from cubio.geotools.models import ImageOffset, GeotransformModel
 
 
 def georeference_image(
@@ -24,12 +24,9 @@ def georeference_image(
     prj_definition: ProjectionDefinition,
     unref_cube_array: np.ndarray | None = None,
     georef_extent: BoundingBoxModel | None = None,
-    save_directory: Path | str | None = None,
-    new_name: str | None = None,
-    new_description: str | None = None,
     new_gcps_offset: ImageOffset | None = None,
-    save_new_context: bool = True,
-) -> CubeContext:
+    apply_cropping: bool = True,
+) -> tuple[np.ndarray, GeotransformModel]:
     # ---- Reading Image Context and Lazy Loading ----
     unreferenced_context = CubeContext.from_json(cubio_json_file)
     if unref_cube_array is None:
@@ -43,9 +40,12 @@ def georeference_image(
     gcp_group = GCPGroup.from_gcps_file(gcps_file)
     if new_gcps_offset:
         gcp_group.adjust_offset(new_gcps_offset)
-    offset_cube: np.ndarray = np.array(
-        gcp_group.offset.crop_image(unref_cube.array)
-    )
+    if apply_cropping:
+        offset_cube: np.ndarray = np.array(
+            gcp_group.offset.crop_image(unref_cube.array)
+        )
+    else:
+        offset_cube = np.array(unref_cube.array)
 
     # ---- Creating Lat/Long Backplane ----
     latlongarr = latlong_from_gcp_group(gcp_group, offset_cube)
@@ -61,9 +61,9 @@ def georeference_image(
             left=long.min() + 0.2,
             right=long.max() - 0.2,
         )
+
     else:
         ext = georef_extent
-
     # ---- Resampling Image ----
     resamp_img, gtrans = georeference_satellite_swath(
         satellite_data=offset_cube,
@@ -73,6 +73,20 @@ def georeference_image(
         extent=ext,
     )
 
+    return resamp_img, gtrans
+
+
+def save_georeference(
+    cubio_json_file: Path | str,
+    resamp_img: np.ndarray,
+    gtrans: GeotransformModel,
+    prj_definition: ProjectionDefinition,
+    unreferenced_context: CubeContext,
+    save_directory: Path | str | None = None,
+    new_name: str | None = None,
+    new_description: str | None = None,
+    save_new_context: bool = True,
+):
     # ---- Export Main Array to Disk ----
     xcoord, ycoord = gtrans.generate_coords(
         height=resamp_img.shape[0], width=resamp_img.shape[1]

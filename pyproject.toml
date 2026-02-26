@@ -1,6 +1,6 @@
 [project]
 name = "cubio"
-version = "0.1.0"
+version = "0.1.2"
 description = "A fully typed and pydantic-compatible framework for reading and writing geospatial data cubes."
 authors = [
     {name = "Z.M. Vig",email = "zvig@umd.edu"}
@@ -20,7 +20,10 @@ dependencies = [
     "tqdm (>=4.67.3,<5.0.0)",
     "tqdm-stubs (>=0.2.1,<0.3.0)",
     "pyresample (>=1.35.0,<2.0.0)",
-    "zarr (>=3.1.5,<4.0.0)"
+    "zarr (>=3.1.5,<4.0.0)",
+    "tifffile (>=2026.2.20,<2027.0.0)",
+    "imagecodecs (>=2026.1.14,<2027.0.0)",
+    "dask (>=2026.1.2,<2027.0.0)",
 ]
 
 

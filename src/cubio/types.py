@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import TypeAlias, Literal, TypeGuard, TypedDict, NotRequired
 from enum import StrEnum
 from rasterio.crs import CRS  # type: ignore
@@ -5,7 +6,7 @@ from affine import Affine  # type: ignore
 import numpy as np
 
 CubeArrayFormat: TypeAlias = Literal["BIL", "BIP", "BSQ"]
-cube_array_foramts: list[CubeArrayFormat] = ["BIL", "BIP", "BSQ"]
+cube_array_formats: list[CubeArrayFormat] = ["BIL", "BIP", "BSQ"]
 cube_array_suffix_map: dict[CubeArrayFormat, str] = {
     "BIL": ".bil",
     "BIP": ".bip",
@@ -16,8 +17,22 @@ suffix_to_format_map: dict[str, CubeArrayFormat] = {
 }
 
 
+@dataclass(frozen=True)
+class FormatIndices:
+    row: int
+    col: int
+    band: int
+
+
+FORMAT_INDICES: dict[CubeArrayFormat, FormatIndices] = {
+    "BIL": FormatIndices(0, 2, 1),
+    "BIP": FormatIndices(0, 1, 2),
+    "BSQ": FormatIndices(2, 1, 0),
+}
+
+
 def is_valid_cubearrayformat(value: str) -> TypeGuard[CubeArrayFormat]:
-    return value in cube_array_foramts
+    return value in cube_array_formats
 
 
 class NumpyDType(StrEnum):
@@ -83,9 +98,11 @@ LabelLike: TypeAlias = np.ndarray | list[float] | list[str]
 
 
 ImageSuffix: TypeAlias = Literal[
-    ".zarr", ".bsq", ".bil", ".bip", ".img", ".hdf5"
+    ".tif", ".tiff", ".zarr", ".bsq", ".bil", ".bip", ".img", ".hdf5"
 ]
 valid_image_suffixes: list[ImageSuffix] = [
+    ".tif",
+    ".tiff",
     ".zarr",
     ".bsq",
     ".bil",
@@ -100,8 +117,18 @@ image_suffix_priority: dict[ImageSuffix, int] = {
     ".bsq": 3,
     ".img": 4,
     ".hdf5": 5,
+    ".tif": 6,
+    ".tiff": 7,
 }
 
 
 def is_valid_image_suffix(value: str) -> TypeGuard[ImageSuffix]:
     return value in valid_image_suffixes
+
+
+MaskType: TypeAlias = Literal["both", "xy", "z"]
+valid_mask_types: list[MaskType] = ["both", "xy", "z"]
+
+
+def is_valid_mask_type(value: str) -> TypeGuard[ImageSuffix]:
+    return value in valid_mask_types

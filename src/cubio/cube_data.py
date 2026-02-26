@@ -1,66 +1,19 @@
+from __future__ import annotations
+
 # Built-Ins
 from typing import Optional
-from typing_extensions import Self
 from warnings import warn
+
 
 # Dependencies
 import xarray as xr
 import numpy as np
 
 # Local Imports
-from cubio.types import LabelLike, CubeArrayFormat
-from cubio.geotools.models import GeotransformModel
+from cubio.types import LabelLike, CubeArrayFormat, FORMAT_INDICES, MaskType
+from cubio.geotools.models import GeotransformModel, PointModel
 from cubio.cube_size_tools import get_cube_size, transpose_cube, CubeSize
-
-
-class CubeMask:
-    def __init__(
-        self,
-        *,
-        shape: CubeSize,
-        xy_mask: np.ndarray | xr.DataArray | None = None,
-        z_mask: np.ndarray | xr.DataArray | None = None,
-    ) -> None:
-        self.shape = shape
-        if (xy_mask is not None) and (xy_mask.dtype is not bool):
-            raise ValueError("XY Mask must be of dtype: bool")
-        if (z_mask is not None) and (z_mask.dtype is not bool):
-            raise ValueError("Z Mask must be of dtype: bool")
-
-        self._xymask = xy_mask
-        self._zmask = z_mask
-
-    @classmethod
-    def transparent(cls, shape: CubeSize) -> Self:
-        return cls(
-            shape=shape,
-            xy_mask=np.ones((shape.nrows, shape.ncolumns), dtype=bool),
-            z_mask=np.ones(shape.nbands, dtype=bool),
-        )
-
-    @property
-    def xymask(self) -> np.ndarray | xr.DataArray:
-        if self._xymask is None:
-            raise ValueError("XY Mask not set yet.")
-        return self._xymask
-
-    @xymask.setter
-    def xymask(self, value: np.ndarray | xr.DataArray) -> None:
-        if value.dtype is not bool:
-            raise ValueError("XY Mask must be of type: bool")
-        self._xymask = value
-
-    @property
-    def zmask(self) -> np.ndarray | xr.DataArray:
-        if self._zmask is None:
-            raise ValueError("XY Mask not set yet.")
-        return self._zmask
-
-    @zmask.setter
-    def zmask(self, value: np.ndarray | xr.DataArray) -> None:
-        if value.dtype is not bool:
-            raise ValueError("Z Mask must be of type: bool")
-        self._zmask = value
+from cubio.cube_mask import CubeMask
 
 
 class CubeData:
@@ -69,105 +22,196 @@ class CubeData:
         name: str,
         format: CubeArrayFormat,
         *,
-        x_labels: Optional[LabelLike] = None,
-        y_labels: Optional[LabelLike] = None,
-        z_labels: Optional[LabelLike] = None,
+        xcoord_label: Optional[LabelLike] = None,
+        ycoord_label: Optional[LabelLike] = None,
+        zcoord_label: Optional[LabelLike] = None,
         x_name: str = "XAxis",
         y_name: str = "YAxis",
         z_name: str = "ZAxis",
         geotransform: Optional[GeotransformModel] = None,
+        nodata: float | int = -999,
     ) -> None:
+        """
+        Class for storing the data and metadata of an image cube.
+
+        Parameters
+        ----------
+        name: str
+            Name of the cube.
+        format: CubeArrayFormat
+            Format of the cube array, one of ["BSQ", "BIL", "BIP"].
+        x_labels: Optional[LabelLike]
+            Optional labels for the x dimension. If not provided, integer
+            indexing will be used.
+        y_labels: Optional[LabelLike]
+            Optional labels for the y dimension. If not provided, integer
+            indexing will be used.
+        z_labels: Optional[LabelLike]
+            Optional labels for the z dimension. If not provided, integer
+            indexing will be used.
+        x_name: str
+            Name of the x dimension. Default is "XAxis".
+        y_name: str
+            Name of the y dimension. Default is "YAxis".
+        z_name: str
+            Name of the z dimension. Default is "ZAxis".
+        geotransform: Optional[GeotransformModel]
+            Optional geotransform for the cube. If provided, it will be used to
+            generate the x and y coordinate arrays, and any provided x and y
+            labels will be overwritten.
+        nodata: float | int
+            Value to use for nodata. Default is -999.
+        """
         self.name: str = name
-        self.fmt: CubeArrayFormat = format
+        self._fmt: CubeArrayFormat = format
         self._gtrans = geotransform
+        self.nodata = nodata
 
         self._array: xr.DataArray | None = None
 
-        self._xlbl = x_labels
-        self._ylbl = y_labels
-        self._zlbl = z_labels
+        self.xcoord_array: Optional[LabelLike] = xcoord_label
+        self.ycoord_array: Optional[LabelLike] = ycoord_label
+        self.zcoord_array: Optional[LabelLike] = zcoord_label
 
-        self.xname = x_name
-        self.yname = y_name
-        self.zname = z_name
+        self.xdim_name = x_name
+        self.ydim_name = y_name
+        self.zdim_name = z_name
 
         if self._gtrans is not None:
-            if (self._xlbl is not None) | (self._ylbl is not None):
+            if (self.xcoord_array is not None) | (
+                self.ycoord_array is not None
+            ):
                 warn(
                     "A geotransform was provided, so any provided x and y"
                     f" labels will be overwritten for {self.name}"
                 )
-            self.xname = "Longitude"
-            self.yname = "Latitude"
+            self.xdim_name = "Longitude"
+            self.ydim_name = "Latitude"
 
-            self._mask: CubeMask | None = None
+        self._mask: CubeMask | None = None
+
+    @property
+    def fmt(self) -> CubeArrayFormat:
+        return self._fmt
+
+    @fmt.setter
+    def fmt(self, value: CubeArrayFormat) -> None:
+        self._fmt = value
+        idx = FORMAT_INDICES[self._fmt]
+        self.rowindex = idx.row
+        self.colindex = idx.col
+        self.bandindex = idx.band
 
     @property
     def mask(self) -> CubeMask:
         if self._mask is None:
-            return CubeMask.transparent(self.shape)
+            return CubeMask.transparent(self)
         return self._mask
 
     @mask.setter
     def mask(self, value: CubeMask) -> None:
         self._mask = value
 
+    def reset_mask(self, which: MaskType = "both") -> None:
+        """
+        Resets the current cube mask.
+
+        Parameters
+        ----------
+        which: MaskType
+            Which mask(s) to reset: "both", "xy" or "z".
+        """
+        if which == "both":
+            self.mask = CubeMask.transparent(self)
+        elif which == "xy":
+            old_zmask = self.mask.zmask
+            self.mask = CubeMask.transparent(self)
+            self.mask.add_to_zmask(old_zmask)
+        elif which == "z":
+            old_xymask = self.mask.xymask
+            self.mask = CubeMask.transparent(self)
+            self.mask.add_to_xymask(old_xymask)
+
+    def add_nodata_mask(self) -> None:
+        """Adds a mask to the current cube mask based on the nodata value."""
+        self._array = self._array_is_set()
+        nodata = self._array[:, :, 0].drop_vars(self.zdim_name) == self.nodata
+        self.mask.add_to_xymask(nodata)
+
     @property
     def shape(self) -> CubeSize:
         if (
-            (self._ylbl is None)
-            or (self._xlbl is None)
-            or (self._zlbl is None)
+            (self.ycoord_array is None)
+            or (self.xcoord_array is None)
+            or (self.zcoord_array is None)
         ):
             raise ValueError("Cube Data is not set yet.")
         return CubeSize(
-            nrows=len(self._ylbl),
-            ncolumns=len(self._xlbl),
-            nbands=len(self._zlbl),
+            nrows=len(self.ycoord_array),
+            ncolumns=len(self.xcoord_array),
+            nbands=len(self.zcoord_array),
         )
 
     @property
     def array(self) -> xr.DataArray:
-        if self._array is None:
-            raise NotImplementedError(
-                f"A data array has not been set for {self.name}."
-            )
-        return self._array
+        self._array = self._array_is_set()
+        self._array.name = "data"
+        return self._apply_mask(drop=False)
 
     @array.setter
     def array(self, value: xr.DataArray) -> None:
-        s = get_cube_size(value, self.fmt)
+        if value.ndim == 2:
+            value = value.expand_dims(dim={self.xdim_name: 1}, axis=2)
+        cubesize = get_cube_size(value, self.fmt)
+        self._set_coordinate_arrays(cubesize)
+        self._array = self._create_xarray_dataarray(value)
 
-        # Setting label values as indices if none are provided.
-        if self._xlbl is None:
-            self._xlbl = np.arange(0, s.ncolumns)
-        if self._ylbl is None:
-            self._ylbl = np.arange(0, s.nrows)
-        if self._zlbl is None:
-            self._zlbl = np.arange(0, s.nbands)
+    def _set_coordinate_arrays(self, cubesize: CubeSize) -> None:
+        """
+        Sets the default axis labels as index arrays based on the cube size.
+        """
+        # Integer indexing arrays are used if none of the arrays are set yet.
+        self.xcoord_array, self.ycoord_array, self.zcoord_array = (
+            self._coord_arrays_are_set()
+        )
+        self.xcoord_array = np.arange(0, cubesize.ncolumns)
+        self.ycoord_array = np.arange(0, cubesize.nrows)
+        self.zcoord_array = np.arange(0, cubesize.nbands)
 
         # X and Y labels should be replaced with coordinates, if possible.
         if self.geotransform is not None:
-            self._xlbl, self._ylbl = self.geotransform.generate_coords(
-                width=s.ncolumns, height=s.nrows
+            self.xcoord_array, self.ycoord_array = (
+                self.geotransform.generate_coords(
+                    width=cubesize.ncolumns, height=cubesize.nrows
+                )
             )
 
-        dims: tuple[str, str, str]
-        if self.fmt == "BIL":
-            dims = (self.yname, self.zname, self.xname)
-        elif self.fmt == "BIP":
-            dims = (self.yname, self.xname, self.zname)
-        elif self.fmt == "BSQ":
-            dims = (self.zname, self.xname, self.yname)
-        else:
-            raise ValueError("Invalid axis names.")
+        return
 
-        self._array = xr.DataArray(
+    def _create_dims_tuple(self) -> tuple[str, str, str]:
+        """
+        Creates a tuple of string dim names in the correct order for the
+        current array format.
+        """
+        _n = np.array(
+            [self.ydim_name, self.xdim_name, self.zdim_name]
+        )  # names
+        dims = (_n[self.rowindex], _n[self.colindex], _n[self.bandindex])
+        return dims
+
+    def _create_xarray_dataarray(self, value: xr.DataArray) -> xr.DataArray:
+        """
+        Creates a new xarray dataarray from an existing dataarray but with the
+        correct coords and dimension names in the correct order for the current
+        cube format.
+        """
+        dims = self._create_dims_tuple()
+        return xr.DataArray(
             value.data,
             coords={
-                self.xname: self._xlbl,
-                self.yname: self._ylbl,
-                self.zname: self._zlbl,
+                self.xdim_name: self.xcoord_array,
+                self.ydim_name: self.ycoord_array,
+                self.zdim_name: self.zcoord_array,
             },
             dims=dims,
         )
@@ -175,8 +219,10 @@ class CubeData:
     @property
     def geotransform(self) -> GeotransformModel:
         if self._gtrans is None:
-            raise ValueError("Geotransform has not been set.")
-        return self._gtrans
+            return GeotransformModel.null()
+        if self._array is None:
+            return self._gtrans
+        return self._get_masked_geotransform()
 
     @geotransform.setter
     def geotransform(self, value: GeotransformModel) -> None:
@@ -191,3 +237,63 @@ class CubeData:
 
     def transpose_to_rasterio(self) -> xr.DataArray:
         return transpose_cube(self.fmt, "RASTERIO", self.array)
+
+    def _apply_mask(
+        self, which: MaskType = "both", drop: bool = False
+    ) -> xr.DataArray:
+        if self._array is None:
+            raise ValueError("Array is not set for applying mask.")
+
+        masks = {
+            "both": ~self.mask.xymask & ~self.mask.zmask,
+            "xy": ~self.mask.xymask,
+            "z": ~self.mask.zmask,
+        }
+        return self._array.where(masks[which], np.nan, drop=drop)
+
+    def _get_masked_geotransform(self) -> GeotransformModel:
+        if self._gtrans is None:
+            raise ValueError("Geotransform is not set yet.")
+        return GeotransformModel(
+            upperleft=PointModel(
+                x=min(self.array.coords["Longitude"]),
+                y=max(self.array.coords["Latitude"]),
+            ),
+            xres=self._gtrans.xres,
+            row_rotation=self._gtrans.row_rotation,
+            yres=self._gtrans.yres,
+            col_rotation=self._gtrans.col_rotation,
+        )
+
+    def get_unmasked_array(self, ignore: MaskType = "both") -> xr.DataArray:
+        """
+        Get the unmasked version of the data cube.
+
+        Parameters
+        ----------
+        ignore: MaskType
+            Which mask(s) to ignore: "both", "xy" or "z".
+        """
+        if self._array is None:
+            raise ValueError("Array is not set for applying mask.")
+
+        if ignore == "both":
+            return self._array
+        elif ignore == "xy":
+            return self._apply_mask("z")
+        elif ignore == "z":
+            return self._apply_mask("xy")
+
+    def _array_is_set(self) -> xr.DataArray:
+        if self._array is None:
+            raise ValueError("Array is not set.")
+        return self._array
+
+    def _coord_arrays_are_set(self) -> tuple[LabelLike, LabelLike, LabelLike]:
+        if self.xcoord_array is None:
+            raise ValueError("X Coordinates are not set.")
+        if self.ycoord_array is None:
+            raise ValueError("Y Coordinates are not set.")
+        if self.zcoord_array is None:
+            raise ValueError("Z Coordinates are not set.")
+        return self.xcoord_array, self.ycoord_array, self.zcoord_array

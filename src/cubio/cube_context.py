@@ -1,5 +1,5 @@
 # Built-ins
-from typing import TypedDict, Literal
+from typing import TypedDict, Literal, NotRequired
 from typing_extensions import Self
 from tempfile import NamedTemporaryFile
 from pathlib import Path
@@ -18,6 +18,8 @@ from pydantic import (
 )
 import rasterio as rio  # type: ignore
 import xarray as xr
+import tifffile as tiff
+import dask.array as dsk_array
 
 # Local Imports
 from cubio.types import (
@@ -49,7 +51,7 @@ class ContextBuilder(TypedDict):
     nbands: int
     hdr_off: int
     data_type: NumpyDType
-    interleave: CubeArrayFormat
+    interleave: NotRequired[CubeArrayFormat]
     crs: str
     geotransform: GeotransformModel
     band_names: list[str]
@@ -79,7 +81,7 @@ class CubeContext(BaseModel):
         ..., description="The data type of the cube."
     )
     interleave: CubeArrayFormat = Field(
-        ...,
+        default="BIP",
         description=(
             "The interleave format of the cube. Either BIL, BIP, or BSQ."
         ),
@@ -124,6 +126,22 @@ class CubeContext(BaseModel):
         return self.shape.as_tuple(self.interleave)
 
     @property
+    def bbl_mask(self) -> xr.DataArray:
+        return xr.DataArray(
+            [not bool(i) for i in self.bad_bands],
+            coords={self.measurement_name: self.measurement_values},
+        )
+
+    def get_measurement_mask(
+        self, min_val: float, max_val: float
+    ) -> xr.DataArray:
+        wvlarr = np.array(self.measurement_values)
+        mask = (wvlarr < min_val) | (wvlarr > max_val)
+        return xr.DataArray(
+            mask, coords={self.measurement_name: self.measurement_values}
+        )
+
+    @property
     def builder(self) -> ContextBuilder:
         _builder: ContextBuilder = {
             "name": self.name,
@@ -159,6 +177,43 @@ class CubeContext(BaseModel):
         valid_model = cls.model_validate_json(json)
         valid_model._retrieval_path = Path(savefp)
         return valid_model
+
+    @classmethod
+    def from_rasterio_profile(
+        cls,
+        name: str,
+        description: str,
+        data_filename: Path,
+        band_names: list[str],
+        measurement_name: str,
+        measurement_units: str,
+        measurement_values: list[float],
+        bbl: list[int],
+        rasterio_profile: RasterioProfile,
+    ) -> Self:
+        _builder: ContextBuilder = {
+            "name": name,
+            "description": description,
+            "data_filename": data_filename,
+            "ncols": rasterio_profile["width"],
+            "nrows": rasterio_profile["height"],
+            "nbands": rasterio_profile["count"],
+            "hdr_off": 0,
+            "data_type": NumpyDType(rasterio_profile["dtype"]),
+            "interleave": rasterio_profile.get("interleave", "BIP"),
+            "crs": rasterio_profile["crs"],
+            "geotransform": GeotransformModel.fromaffine(
+                rasterio_profile["transform"]
+            ),
+            "band_names": band_names,
+            "nodata": rasterio_profile["nodata"],
+            "measurement_name": measurement_name,
+            "measurement_units": measurement_units,
+            "measurement_values": measurement_values,
+            "bad_bands": bbl,
+            "id": uuid4(),
+        }
+        return cls.from_builder(_builder)
 
     @field_serializer("interleave", mode="plain")
     def lowercase(self, value: CubeArrayFormat) -> str:
@@ -196,6 +251,9 @@ class CubeContext(BaseModel):
                 "Length of measurement values must match the number of bands."
             )
         return self
+
+    def set_retrieval_path(self, retrieval_path: Path) -> None:
+        self._retrieval_path = retrieval_path
 
     def write_envi_hdr(
         self, dst: Path | str | None = None, use_image_name: bool = True
@@ -254,6 +312,8 @@ class CubeContext(BaseModel):
             f.write(np.empty((1, 1, 1)))
 
         temp_img.unlink()  # Discarding temporary image.
+        if temp_img.with_suffix(".img.aux.xml").exists():  # Discarding xml
+            temp_img.with_suffix(".img.aux.xml").unlink()
 
         # Modifying rasterio-written .hdr file.
         # These are existing fields.
@@ -267,8 +327,10 @@ class CubeContext(BaseModel):
         replace_hdr_description(temp_hdr, self.description)
 
         with open(temp_hdr, "a") as f:
+            # Still unsure if I need this...
+            # f.write(f"data ignore value = {self.nodata}\n")
+
             # These are all new fields.
-            f.write(f"data ignore value = {self.nodata}\n")
             f.write(f"wavelenth units = {self.measurement_units}\n")
             f.write(
                 "wavelength = "
@@ -309,9 +371,10 @@ class CubeContext(BaseModel):
         dat = CubeData(
             self.name,
             self.interleave,
-            z_labels=self.measurement_values,
+            zcoord_label=self.measurement_values,
             z_name=self.measurement_name,
             geotransform=self.geotransform,
+            nodata=self.nodata,
         )
         candidate_image_data_files: list[tuple[Path, ImageSuffix]] = []
         for i in load_from.iterdir():
@@ -325,6 +388,8 @@ class CubeContext(BaseModel):
         )
 
         image_data_file = candidate_image_data_files[0][0]
+
+        print(f"Lazy Loading from: {image_data_file}")
 
         interleave_test = suffix_to_format_map.get(image_data_file.suffix)
 
@@ -346,10 +411,23 @@ class CubeContext(BaseModel):
         elif image_data_file.suffix.lower() == ".hdf5":
             raise NotImplementedError("HDF5 file not implemented yet.")
         elif image_data_file.suffix.lower() == ".zarr":
-            arr = xr.open_dataarray(image_data_file, engine="zarr")
-            dat.yname = str(arr.dims[0])
-            dat.xname = str(arr.dims[1])
-            dat.zname = str(arr.dims[2])
+            arr = xr.open_zarr(image_data_file).data
+            dat.ydim_name = str(arr.dims[0])
+            dat.xdim_name = str(arr.dims[1])
+            dat.zdim_name = str(arr.dims[2])
             dat.array = arr
+        elif image_data_file.suffix.lower() in [".tiff", ".tif"]:
+            zarr = tiff.imread(image_data_file, aszarr=True)
+            darr = dsk_array.from_zarr(zarr)
+            if darr.ndim == 2:
+                da = xr.DataArray(darr, dims=("y", "x"))
+            elif darr.ndim == 3:
+                da = xr.DataArray(darr, dims=("y", "x", " z"))
+            else:
+                raise ValueError(
+                    "Loaded data has an invalid number of dimensions: "
+                    f"{darr.ndim}."
+                )
+            dat.array = da
 
         return dat

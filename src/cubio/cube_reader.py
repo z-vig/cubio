@@ -8,9 +8,11 @@ import numpy as np
 # Local Imports
 from cubio.types import suffix_to_format_map, NumpyDType
 from cubio.cube_size_tools import CubeSize
+from cubio.cube_context import CubeContext
+from cubio.cube_data import CubeData
 
 
-def cube_reader(
+def read_binary_image_file(
     fp: Path, size: CubeSize, data_type: NumpyDType
 ) -> xr.DataArray:
     suff = fp.suffix
@@ -22,3 +24,16 @@ def cube_reader(
         return xr.DataArray(arr)
     else:
         raise NotImplementedError()
+
+
+def read_cube_data(json_fp: Path | str) -> tuple[CubeContext, CubeData]:
+    """
+    Reads the json context and loads the data for an image cube.
+
+    Parameters
+    ----------
+    json_fp: Path to .json file that can be validated to CubeContext object.
+    """
+    ctxt: CubeContext = CubeContext.from_json(json_fp)
+    cdat: CubeData = ctxt.lazy_load_data()
+    return ctxt, cdat

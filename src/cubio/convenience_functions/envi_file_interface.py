@@ -115,10 +115,11 @@ def read_measurement_envi_file_context(
     if bbl == "No BBL Found":
         bbl = [1] * len(band_names)
 
+    crs: str
     if prf["crs"] is None:
         crs = GeographicCRS.GCS_MOON_2000
     else:
-        crs = prf["crs"]
+        crs = str(prf["crs"])
 
     context_dict: ContextBuilder = {
         "name": name,
