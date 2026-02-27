@@ -4,7 +4,7 @@ import numpy as np
 
 # Local
 from cubio.cube_mask import CubeMask, MaskBuilder
-from cubio.types import MaskType
+from cubio.types import MaskType, TrimDirection
 from .core import CubeDataCore
 from .validation import array_is_set
 
@@ -41,7 +41,8 @@ class MaskingMixIn(CubeDataCore):
     @property
     def array(self) -> xr.DataArray:
         super().array
-        return self._apply_mask()
+        masked_arr = self._apply_mask()
+        return self._handle_trimming(masked_arr)
 
     @array.setter
     def array(self, value: xr.DataArray) -> None:
@@ -79,7 +80,6 @@ class MaskingMixIn(CubeDataCore):
     def _apply_mask(
         self,
         which: MaskType = "both",
-        drop: bool = False,
     ) -> xr.DataArray:
         """
         Applies mask to the data cube.
@@ -97,7 +97,7 @@ class MaskingMixIn(CubeDataCore):
             "xy": ~self.mask.xymask,
             "z": ~self.mask.zmask,
         }
-        return valid_array.where(masks[which], np.nan, drop=drop)
+        return valid_array.where(masks[which], np.nan, drop=False)
 
     def get_unmasked_array(self, ignore: MaskType = "both") -> xr.DataArray:
         """
@@ -116,3 +116,18 @@ class MaskingMixIn(CubeDataCore):
             return self._apply_mask("z")
         elif ignore == "z":
             return self._apply_mask("xy")
+
+    def _handle_trimming(self, current_array: xr.DataArray) -> xr.DataArray:
+        if self._trim_direction == "Both":
+            current_array = current_array.dropna(self.xdim_name, how="all")
+            current_array = current_array.dropna(self.ydim_name, how="all")
+        elif self._trim_direction == "x":
+            current_array = current_array.dropna(self.xdim_name, how="all")
+        elif self._trim_direction == "y":
+            current_array = current_array.dropna(self.ydim_name, how="all")
+        elif self._trim_direction == "NoTrim":
+            pass
+        return current_array
+
+    def set_array_trimming(self, trim_direction: TrimDirection = "Both"):
+        self._trim_direction = trim_direction

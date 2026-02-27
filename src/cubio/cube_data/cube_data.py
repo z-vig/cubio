@@ -1,6 +1,12 @@
+# Built-Ins
+from pathlib import Path
+
+# Mixins
 from .masking import MaskingMixIn
 from .geospatial import GeospatialMixIn
 from .transformation import TransformationMixIn
+
+from cubio.geotools.generate_raster_from_shapefile import raster_from_shapefile
 
 
 class CubeData(MaskingMixIn, GeospatialMixIn, TransformationMixIn):
@@ -17,4 +23,12 @@ class CubeData(MaskingMixIn, GeospatialMixIn, TransformationMixIn):
     - Handles the geotransform of the data cube.
     """
 
-    pass
+    def add_shapefile_mask(self, shapefile_fp: str | Path) -> None:
+        if self._gtrans is None:
+            raise ValueError(
+                "Cannot mask from shapefile without a Geotransform"
+            )
+        shapefile_raster = raster_from_shapefile(
+            self.ycoords, self.xcoords, shapefile_fp
+        )
+        self.mask.add_to_xymask(~shapefile_raster)

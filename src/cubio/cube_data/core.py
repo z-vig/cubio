@@ -12,7 +12,12 @@ import xarray as xr
 import numpy as np
 
 # Package-Level Imports
-from cubio.types import LabelLike, CubeArrayFormat, FORMAT_INDICES
+from cubio.types import (
+    LabelLike,
+    CubeArrayFormat,
+    FORMAT_INDICES,
+    TrimDirection,
+)
 from cubio.geotools.models import GeotransformModel
 from cubio.cube_size_tools import get_cube_size, CubeSize
 
@@ -87,6 +92,8 @@ class CubeDataCore:
         self.zdim_name = z_name
 
         self._shape: CubeSize | None = None
+
+        self._trim_direction: TrimDirection = "NoTrim"
 
     @property
     def fmt(self) -> CubeArrayFormat:
