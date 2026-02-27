@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # Built-Ins
-from typing import TYPE_CHECKING
+from typing import TypedDict
 from typing_extensions import Self
 
 # Dependencies
@@ -9,20 +9,28 @@ import xarray as xr
 import numpy as np
 
 # Local
+from cubio.cube_size_tools import CubeSize
 
-if TYPE_CHECKING:
-    from .cube_data import CubeData
+
+class MaskBuilder(TypedDict):
+    shape: CubeSize
+    xdim_name: str
+    ydim_name: str
+    zdim_name: str
 
 
 class CubeMask:
     def __init__(
         self,
-        parent: CubeData,
         *,
+        shape: CubeSize,
+        xdim_name: str,
+        ydim_name: str,
+        zdim_name: str,
         xy_mask: xr.DataArray | None = None,
         z_mask: xr.DataArray | None = None,
     ) -> None:
-        self.shape = parent.shape
+        self.shape = shape
         if (xy_mask is not None) and (xy_mask.dtype != bool):
             raise ValueError(
                 "XY Mask must be of dtype bool not" f" {xy_mask.dtype}"
@@ -32,23 +40,33 @@ class CubeMask:
 
         self._xymask = xy_mask
         self._zmask = z_mask
-        self.dims = (parent.ydim_name, parent.xdim_name, parent.zdim_name)
-        self._parent = parent
+        self.xdim_name = xdim_name
+        self.ydim_name = ydim_name
+        self.zdim_name = zdim_name
 
     @classmethod
-    def transparent(cls, parent: CubeData) -> Self:
+    def transparent(
+        cls,
+        shape: CubeSize,
+        xdim_name: str,
+        ydim_name: str,
+        zdim_name: str,
+    ) -> Self:
+        xy_mask = xr.DataArray(
+            np.zeros((shape.nrows, shape.ncolumns), dtype=bool),
+            dims=(ydim_name, xdim_name),
+        )
+        z_mask = xr.DataArray(
+            np.zeros(shape.nbands, dtype=bool),
+            dims=(zdim_name),
+        )
         return cls(
-            parent,
-            xy_mask=xr.DataArray(
-                np.zeros(
-                    (parent.shape.nrows, parent.shape.ncolumns), dtype=bool
-                ),
-                dims=(parent.ydim_name, parent.xdim_name),
-            ),
-            z_mask=xr.DataArray(
-                np.zeros(parent.shape.nbands, dtype=bool),
-                dims=(parent.zdim_name),
-            ),
+            shape=shape,
+            xdim_name=xdim_name,
+            ydim_name=ydim_name,
+            zdim_name=zdim_name,
+            xy_mask=xy_mask,
+            z_mask=z_mask,
         )
 
     @property
@@ -65,14 +83,16 @@ class CubeMask:
             raise ValueError(
                 f"Invalid number of xy mask dimensions: {value.ndim}"
             )
+        if self._xymask is None:
+            raise ValueError("XY Mask is not set.")
+        self._xymask.rename((self.ydim_name, self.xdim_name))
         self._xymask = value
-        self._parent.mask = self
 
     @property
     def zmask(self) -> xr.DataArray:
         if self._zmask is None:
-            raise ValueError("XY Mask not set yet.")
-        self._zmask.rename(self.dims[2])
+            raise ValueError("Z Mask not set yet.")
+        self._zmask.rename(self.zdim_name)
         return self._zmask
 
     @zmask.setter
@@ -84,7 +104,6 @@ class CubeMask:
                 f"Invalid number of xy mask dimensions: {value.ndim}"
             )
         self._zmask = value
-        self._parent.mask = self
 
     def add_to_xymask(self, new_mask: xr.DataArray) -> None:
         if new_mask.dtype != bool:
@@ -95,7 +114,7 @@ class CubeMask:
             raise ValueError(
                 f"New mask has invalid dimensions: {new_mask.ndim}"
             )
-        new_mask.rename((self.dims[0], self.dims[1]))
+        new_mask.rename((self.ydim_name, self.xdim_name))
         self.xymask = self._xymask | new_mask
 
     def add_to_zmask(self, new_mask: xr.DataArray) -> None:
@@ -107,5 +126,5 @@ class CubeMask:
             raise ValueError(
                 f"New mask has invalid dimensions: {new_mask.ndim}"
             )
-        new_mask.rename((self.dims[2]))
+        new_mask.rename((self.zdim_name))
         self.zmask = self._zmask | new_mask

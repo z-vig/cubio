@@ -26,7 +26,9 @@ def read_binary_image_file(
         raise NotImplementedError()
 
 
-def read_cube_data(json_fp: Path | str) -> tuple[CubeContext, CubeData]:
+def read_cube_data(
+    json_fp: Path | str, apply_bbl: bool = False
+) -> tuple[CubeContext, CubeData]:
     """
     Reads the json context and loads the data for an image cube.
 
@@ -36,4 +38,6 @@ def read_cube_data(json_fp: Path | str) -> tuple[CubeContext, CubeData]:
     """
     ctxt: CubeContext = CubeContext.from_json(json_fp)
     cdat: CubeData = ctxt.lazy_load_data()
+    if apply_bbl:
+        cdat.mask.add_to_zmask(ctxt.bbl_mask)
     return ctxt, cdat

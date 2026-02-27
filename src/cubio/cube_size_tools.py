@@ -1,3 +1,8 @@
+"""
+#### `cube_size_tools`
+Tools for dealing with the shape/size interpretation of an image cube array.
+"""
+
 # Built-ins
 from dataclasses import dataclass
 from typing import Literal
