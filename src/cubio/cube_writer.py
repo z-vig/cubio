@@ -62,7 +62,7 @@ def write_envi(
         "driver": "ENVI",
         "dtype": cube_context.data_type,
         "interleave": interleave,
-        "nodata": -999,
+        "nodata": cube_context.nodata,
         "transform": cube_context.geotransform.toaffine(),
     }
 
@@ -79,14 +79,18 @@ def write_envi(
     Path(save_fp.with_suffix(".hdr")).unlink()
 
     cube_context.interleave = interleave
-    cube_context.write_envi_hdr(dst=dst_fp, use_image_name=True)
+    cube_context.write_envi_hdr(
+        dst=save_fp.with_suffix(".hdr"), use_image_name=True
+    )
+
+    print(save_fp)
 
 
 def write_zarr(
     cube_context: CubeContext,
     cube_data: CubeData,
     dst_fp: Path | str | None = None,
-    mode: Literal["w", "r"] = "r",
+    mode: Literal["w"] = "w",
 ) -> None:
     """
     Writes an .zarr directory.
@@ -108,7 +112,8 @@ def write_zarr(
     """
     save_dir = get_save_directory(cube_context, dst_fp)
     save_fp = Path(save_dir, cube_context.data_filename.with_suffix(".zarr"))
-    print(save_fp)
+    cube_context.interleave = "BIP"
+    cube_context.write_json(cube_context._retrieval_path)
     if not save_fp.exists():
         cube_data.array.to_zarr(
             save_fp, zarr_format=2, consolidated=True, mode="w"

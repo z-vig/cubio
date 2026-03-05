@@ -59,6 +59,12 @@ class MaskingMixIn(CubeDataCore):
         which: MaskType
             Which mask(s) to reset: "both", "xy" or "z".
         """
+        self._builder = {
+            "shape": self.shape,
+            "xdim_name": self.xdim_name,
+            "ydim_name": self.ydim_name,
+            "zdim_name": self.zdim_name,
+        }
 
         if which == "both":
             self.mask = CubeMask.transparent(**self._builder)
@@ -91,13 +97,15 @@ class MaskingMixIn(CubeDataCore):
         drop: bool, default=False
             Whether to drop the masked coordinates from the dataarray.
         """
-        valid_array = array_is_set(self._array)  # Validation
-        masks = {
-            "both": ~self.mask.xymask & ~self.mask.zmask,
-            "xy": ~self.mask.xymask,
-            "z": ~self.mask.zmask,
-        }
-        return valid_array.where(masks[which], np.nan, drop=False)
+        self._array = array_is_set(self._array)  # Validation
+        # masks = {
+        #     "both": ~self.mask.xymask & ~self.mask.zmask,
+        #     "xy": ~self.mask.xymask,
+        #     "z": ~self.mask.zmask,
+        # }
+        # return self._array
+        # return self._array.where(masks[which], np.nan, drop=False)
+        return self._array
 
     def get_unmasked_array(self, ignore: MaskType = "both") -> xr.DataArray:
         """
@@ -118,16 +126,22 @@ class MaskingMixIn(CubeDataCore):
             return self._apply_mask("xy")
 
     def _handle_trimming(self, current_array: xr.DataArray) -> xr.DataArray:
-        if self._trim_direction == "Both":
+        if self._trim_direction == "All":
+            current_array = current_array.dropna(self.xdim_name, how="all")
+            current_array = current_array.dropna(self.ydim_name, how="all")
+            current_array = current_array.dropna(self.zdim_name, how="all")
+        elif self._trim_direction == "SpatialTrim":
             current_array = current_array.dropna(self.xdim_name, how="all")
             current_array = current_array.dropna(self.ydim_name, how="all")
         elif self._trim_direction == "x":
             current_array = current_array.dropna(self.xdim_name, how="all")
         elif self._trim_direction == "y":
             current_array = current_array.dropna(self.ydim_name, how="all")
+        elif self._trim_direction == "z":
+            current_array = current_array.dropna(self.zdim_name, how="all")
         elif self._trim_direction == "NoTrim":
             pass
         return current_array
 
-    def set_array_trimming(self, trim_direction: TrimDirection = "Both"):
+    def set_array_trimming(self, trim_direction: TrimDirection = "All"):
         self._trim_direction = trim_direction

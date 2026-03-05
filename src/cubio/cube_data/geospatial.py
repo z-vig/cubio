@@ -1,10 +1,18 @@
 # Built-Ins
 from warnings import warn
 
+# Dependencies
+import xarray as xr
+
 # Local Imports
 from cubio.types import LabelLike
-from cubio.geotools.models import GeotransformModel, PointModel
+from cubio.geotools.models import (
+    GeotransformModel,
+    PointModel,
+    BoundingBoxModel,
+)
 from .core import CubeDataCore
+from .validation import array_is_set
 
 
 class GeospatialMixIn(CubeDataCore):
@@ -26,8 +34,8 @@ class GeospatialMixIn(CubeDataCore):
             raise ValueError("Geotransform is not set yet.")
         return GeotransformModel(
             upperleft=PointModel(
-                x=min(self.array.coords["Longitude"]),
-                y=max(self.array.coords["Latitude"]),
+                x=self.array.coords["Longitude"][0],
+                y=self.array.coords["Latitude"][0],
             ),
             xres=self._gtrans.xres,
             row_rotation=self._gtrans.row_rotation,
@@ -55,3 +63,20 @@ class GeospatialMixIn(CubeDataCore):
             self.xdim_name = "Longitude"
             self.ydim_name = "Latitude"
         return super()._create_dims_tuple()
+
+    def read_bbox(self, bbox: BoundingBoxModel) -> xr.DataArray:
+        bottom_left_pixel = self.geotransform.map_to_pixel(
+            xmap=bbox.top_right.x, ymap=bbox.top_right.y
+        )
+        top_right_pixel = self.geotransform.map_to_pixel(
+            xmap=bbox.top_right.x, ymap=bbox.top_right.y
+        )
+
+        print(bottom_left_pixel, top_right_pixel)
+        row_slice = slice(top_right_pixel.y, bottom_left_pixel.y)
+        col_slice = slice(bottom_left_pixel.x, top_right_pixel.x)
+
+        print(row_slice, col_slice)
+        self._array = array_is_set(self._array)
+
+        return self._array[row_slice, col_slice, :]

@@ -67,7 +67,7 @@ def read_spectral_envi_file_context(fp: Path | str, name: str) -> CubeContext:
         "nrows": prf["height"],
         "ncols": prf["width"],
         "nbands": prf["count"],
-        "crs": crs,
+        "crs": str(crs),
         "geotransform": GeotransformModel.fromaffine(prf["transform"]),
         "hdr_off": 0,
         "data_type": NumpyDType.FLOAT32,

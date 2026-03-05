@@ -4,6 +4,7 @@ from shapely.geometry import Polygon, mapping  # type: ignore
 from pathlib import Path
 from uuid import UUID, uuid4
 from typing import Literal
+from cubio.types import BBoxDict
 
 
 def todms(
@@ -134,6 +135,15 @@ class BoundingBoxModel(BaseModel):
                 self.bottom_right.x,
                 self.bottom_right.y,
             ]
+
+    def as_dict(self) -> BBoxDict:
+        bbox_dict: BBoxDict = {
+            "bottom": self.bottom,
+            "top": self.top,
+            "left": self.left,
+            "right": self.right,
+        }
+        return bbox_dict
 
 
 def to_shapefile(

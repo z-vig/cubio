@@ -1,5 +1,4 @@
 # Built-ins
-from dataclasses import dataclass
 from typing import Literal
 from typing_extensions import Self
 
@@ -7,6 +6,8 @@ from typing_extensions import Self
 from pydantic import BaseModel
 from affine import Affine  # type: ignore
 import numpy as np
+
+from .bounding_box_model import BoundingBoxModel
 
 
 class GeographicBoundsError(Exception):
@@ -22,16 +23,6 @@ class PointModel(BaseModel):
 
     def astuple(self):
         return (self.x, self.y)
-
-
-@dataclass
-class Bounds:
-    """Representation of a bounding box"""
-
-    left: float
-    bottom: float
-    right: float
-    top: float
 
 
 class GeotransformModel(BaseModel):
@@ -142,11 +133,12 @@ class GeotransformModel(BaseModel):
 
     def get_bbox(self, height: int, width: int):
         """Given the height and width of a raster, return a bounding box."""
-        return Bounds(
+        return BoundingBoxModel(
             left=self.upperleft.x,
             bottom=self.upperleft.y + height * self.yres,
             right=self.upperleft.x + width * self.xres,
             top=self.upperleft.y,
+            name="bbox",
         )
 
     def pixel_to_map(

@@ -1,7 +1,6 @@
 # Built-ins
 from typing import TypedDict, Literal, NotRequired
 from typing_extensions import Self
-from tempfile import NamedTemporaryFile
 from pathlib import Path
 import shutil
 from uuid import UUID, uuid4
@@ -256,7 +255,7 @@ class CubeContext(BaseModel):
         self._retrieval_path = retrieval_path
 
     def write_envi_hdr(
-        self, dst: Path | str | None = None, use_image_name: bool = True
+        self, dst: Path | str, use_image_name: bool = True
     ) -> None:
         """
         Writes the model to a properly formatted ENVI header file.
@@ -272,12 +271,7 @@ class CubeContext(BaseModel):
         include one.
         """
 
-        # A temporary file should be used if no path is provided.
-        if dst is None:
-            tf = NamedTemporaryFile(suffix=".hdr", delete=False)
-            savefp = Path(tf.name)
-        else:
-            savefp = Path(dst)
+        savefp = Path(dst)
 
         # Adding suffix based on the use_image_name option.
         if use_image_name:
@@ -418,11 +412,11 @@ class CubeContext(BaseModel):
             dat.array = arr
         elif image_data_file.suffix.lower() in [".tiff", ".tif"]:
             zarr = tiff.imread(image_data_file, aszarr=True)
-            darr = dsk_array.from_zarr(zarr)
+            darr = dsk_array.from_zarr(zarr, chunks=(2048, 2048))
             if darr.ndim == 2:
                 da = xr.DataArray(darr, dims=("y", "x"))
             elif darr.ndim == 3:
-                da = xr.DataArray(darr, dims=("y", "x", " z"))
+                da = xr.DataArray(darr, dims=("y", "x", "z"))
             else:
                 raise ValueError(
                     "Loaded data has an invalid number of dimensions: "

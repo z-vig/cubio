@@ -123,13 +123,13 @@ class CubeDataCore:
     @property
     def ycoords(self) -> LabelLike:
         if self._ycoords is None:
-            self._ycoords = np.arange(0, self.shape.ncolumns)
+            self._ycoords = np.arange(0, self.shape.nrows)
         return self._ycoords
 
     @property
     def zcoords(self) -> LabelLike:
         if self._zcoords is None:
-            self._zcoords = np.arange(0, self.shape.ncolumns)
+            self._zcoords = np.arange(0, self.shape.nbands)
         return self._zcoords
 
     @property
@@ -178,3 +178,30 @@ class CubeDataCore:
             coords=crds,
             dims=dims,
         )
+
+    def reset_coords(
+        self,
+        xcoord_label: Optional[LabelLike] = None,
+        ycoord_label: Optional[LabelLike] = None,
+        zcoord_label: Optional[LabelLike] = None,
+    ) -> None:
+        """
+        Resets data coordinates. If any arg is None, it will be reset to
+        either an index array (x, y and z) or a lat/long array set by the
+        geotransform (x and y).
+
+        Parameters
+        ----------
+        x_labels: Optional[LabelLike]
+            Optional labels for the x dimension. If not provided, integer
+            indexing will be used.
+        y_labels: Optional[LabelLike]
+            Optional labels for the y dimension. If not provided, integer
+            indexing will be used.
+        z_labels: Optional[LabelLike]
+            Optional labels for the z dimension. If not provided, integer
+            indexing will be used.
+        """
+        self._xcoords = xcoord_label
+        self._ycoords = ycoord_label
+        self._zcoords = zcoord_label

@@ -5,7 +5,9 @@ import textwrap
 from typing import Literal
 
 
-def extract_hdr_band_names(hdr_fp: str | Path) -> list[str]:
+def extract_hdr_band_names(
+    hdr_fp: str | Path,
+) -> list[str] | Literal["Band names not found."]:
     ptrn = re.compile(r"band\s*names\s*=\s*{([\s\S]*)}")
     with open(hdr_fp) as src:
         s = src.read()
