@@ -117,8 +117,8 @@ def cubedata_from_geotiff(
     geotiff_fp: str | Path,
     name: str,
     desc: str,
-    measurement_name: str = "Wavelength",
-    measurement_unit: str = "nm",
+    measurement_name: str = "Measurement",
+    measurement_unit: str = "na",
     band_names: Optional[list[str]] = None,
     measurement_vals: Optional[list[float]] = None,
     bbl: Optional[list[int]] = None,
@@ -137,7 +137,9 @@ def cubedata_from_geotiff(
 
     interlv_test = prf.get("interleave", None)
     interlv: CubeArrayFormat
-    if interlv_test is None or interlv_test == "band":
+    if interlv_test is None or interlv_test.lower() == "band":
+        interlv = "BIP"
+    elif interlv_test.lower() == "pixel":
         interlv = "BIP"
     else:
         interlv = interlv_test

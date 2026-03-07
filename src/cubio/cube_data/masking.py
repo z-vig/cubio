@@ -1,6 +1,7 @@
 # Dependencies
 import xarray as xr
-import numpy as np
+
+# import numpy as np
 
 # Local
 from cubio.cube_mask import CubeMask, MaskBuilder

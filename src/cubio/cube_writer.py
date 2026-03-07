@@ -101,9 +101,6 @@ def write_zarr(
         CubeContext object containing relevant metadata about the cube.
     cube_data: CubeData
         CubeData object containing the data to be written.
-    interleave: CubeArrayFormat
-        Desired interleave format for the output file. Must be one of "BIP",
-        "BIL", or "BSQ".
     dst_fp: Path | str | None, optional.
         Path to save directory. File name is automatically set by cube context.
         File directory is either set by the function arg or by the retrieval
@@ -114,6 +111,7 @@ def write_zarr(
     save_fp = Path(save_dir, cube_context.data_filename.with_suffix(".zarr"))
     cube_context.interleave = "BIP"
     cube_context.write_json(cube_context._retrieval_path)
+    print(f"Saving zarr: {save_fp}")
     if not save_fp.exists():
         cube_data.array.to_zarr(
             save_fp, zarr_format=2, consolidated=True, mode="w"

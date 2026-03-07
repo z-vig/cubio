@@ -10,7 +10,8 @@ from cubio.types import BBoxDict
 def todms(
     dd: float, coord_type: Literal["lon", "lat"], precision: int = 0
 ) -> str:
-    """Convert decimal degrees (-180..180) to DMS with N/S/E/W.
+    """
+    Convert decimal degrees (-180..180) to DMS with N/S/E/W.
 
     Args:
         dd: Decimal degrees value.
@@ -84,6 +85,12 @@ class BoundingBoxModel(BaseModel):
     @property
     def bottom_right(self) -> Point:
         return Point(x=self.right, y=self.bottom)
+
+    @property
+    def centroid(self) -> Point:
+        return Point(
+            x=(self.right + self.left) / 2, y=(self.top + self.bottom) / 2
+        )
 
     @property
     def shapely_polygon(self) -> Polygon:
@@ -198,3 +205,43 @@ def to_csv(bbox: list[BoundingBoxModel], dst_fp: Path | str) -> None:
         )
         for i in bbox:
             f.write(i.as_csv_row())
+
+
+def _bboxes_are_unique(
+    bbox1: BoundingBoxModel, bbox2: BoundingBoxModel
+) -> bool:
+    if (
+        bbox1.left == bbox2.left
+        and bbox1.right == bbox2.right
+        and bbox1.top == bbox2.top
+        and bbox1.bottom == bbox2.bottom
+    ):
+        return False
+    return True
+
+
+def _bboxes_overlap(bbox1: BoundingBoxModel, bbox2: BoundingBoxModel) -> bool:
+    if (
+        bbox1.left < bbox2.right
+        and bbox2.left < bbox1.right
+        and bbox1.bottom < bbox2.top
+        and bbox2.bottom < bbox1.top
+    ):
+        return True
+    return False
+
+
+def bbox_intersection(
+    bbox1: BoundingBoxModel, bbox2: BoundingBoxModel
+) -> BoundingBoxModel | Literal["No Intersection Found."]:
+    # ---- Validity Check ----
+    if _bboxes_are_unique(bbox1, bbox2) and _bboxes_overlap(bbox1, bbox2):
+        return BoundingBoxModel(
+            left=max(bbox1.left, bbox2.left),
+            right=min(bbox1.right, bbox2.right),
+            bottom=max(bbox1.bottom, bbox2.bottom),
+            top=min(bbox1.top, bbox2.top),
+            name=f"{bbox1.name}_{bbox2.name}_intersection",
+        )
+
+    return "No Intersection Found."

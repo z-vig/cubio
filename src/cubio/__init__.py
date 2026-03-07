@@ -9,7 +9,11 @@ Welcome to `cubio`!
 from .cube_context import CubeContext
 from .cube_data import CubeData
 from .cube_writer import write_envi, write_zarr
-from .cube_reader import cubedata_from_json_file
+from .cube_reader import (
+    cubedata_from_json_file,
+    cubedata_from_envi_file,
+    cubedata_from_geotiff,
+)
 
 __all__ = [
     "CubeContext",
@@ -17,4 +21,6 @@ __all__ = [
     "write_envi",
     "write_zarr",
     "cubedata_from_json_file",
+    "cubedata_from_envi_file",
+    "cubedata_from_geotiff",
 ]

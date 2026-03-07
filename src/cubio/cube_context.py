@@ -1,5 +1,5 @@
 # Built-ins
-from typing import TypedDict, Literal, NotRequired
+from typing import TypedDict, Literal, NotRequired, Union, overload
 from typing_extensions import Self
 from pathlib import Path
 import shutil
@@ -134,11 +134,30 @@ class CubeContext(BaseModel):
     def get_measurement_mask(
         self, min_val: float, max_val: float
     ) -> xr.DataArray:
-        wvlarr = np.array(self.measurement_values)
-        mask = (wvlarr < min_val) | (wvlarr > max_val)
+        measarr = np.array(self.measurement_values)
+        mask = (measarr < min_val) | (measarr > max_val)
         return xr.DataArray(
             mask, coords={self.measurement_name: self.measurement_values}
         )
+
+    @overload
+    def get_measurement_idx(
+        self, value: Union[list[float], list[int]]
+    ) -> list[int]: ...
+    @overload
+    def get_measurement_idx(self, value: Union[float, int]) -> int: ...
+
+    def get_measurement_idx(
+        self, value: Union[float, int, list[float], list[int]]
+    ) -> Union[int, list[int]]:
+        measarr = np.array(self.measurement_values)
+        if isinstance(value, list):
+            idxs: list[int] = []
+            for i in value:
+                idxs.append(int(np.argmin(abs(measarr - i))))
+            return idxs
+        else:
+            return int(np.argmin(abs(measarr - value)))
 
     @property
     def builder(self) -> ContextBuilder:
@@ -412,7 +431,8 @@ class CubeContext(BaseModel):
             dat.array = arr
         elif image_data_file.suffix.lower() in [".tiff", ".tif"]:
             zarr = tiff.imread(image_data_file, aszarr=True)
-            darr = dsk_array.from_zarr(zarr, chunks=(2048, 2048))
+            print("READING TIFF")
+            darr = dsk_array.from_zarr(zarr, chunks="auto")
             if darr.ndim == 2:
                 da = xr.DataArray(darr, dims=("y", "x"))
             elif darr.ndim == 3:

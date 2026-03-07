@@ -64,19 +64,26 @@ class GeospatialMixIn(CubeDataCore):
             self.ydim_name = "Latitude"
         return super()._create_dims_tuple()
 
-    def read_bbox(self, bbox: BoundingBoxModel) -> xr.DataArray:
+    def read_bbox(
+        self, bbox: BoundingBoxModel
+    ) -> tuple[xr.DataArray, GeotransformModel]:
         bottom_left_pixel = self.geotransform.map_to_pixel(
-            xmap=bbox.top_right.x, ymap=bbox.top_right.y
+            xmap=bbox.bottom_left.x, ymap=bbox.bottom_left.y
         )
         top_right_pixel = self.geotransform.map_to_pixel(
             xmap=bbox.top_right.x, ymap=bbox.top_right.y
         )
+        row_slice = slice(int(top_right_pixel.y), int(bottom_left_pixel.y))
+        col_slice = slice(int(bottom_left_pixel.x), int(top_right_pixel.x))
 
-        print(bottom_left_pixel, top_right_pixel)
-        row_slice = slice(top_right_pixel.y, bottom_left_pixel.y)
-        col_slice = slice(bottom_left_pixel.x, top_right_pixel.x)
-
-        print(row_slice, col_slice)
         self._array = array_is_set(self._array)
 
-        return self._array[row_slice, col_slice, :]
+        bbox_gtrans = GeotransformModel(
+            upperleft=PointModel(x=bbox.top_left.x, y=bbox.top_left.y),
+            xres=self.geotransform.xres,
+            yres=self.geotransform.yres,
+            row_rotation=self.geotransform.row_rotation,
+            col_rotation=self.geotransform.col_rotation,
+        )
+
+        return self._array[row_slice, col_slice, :], bbox_gtrans
