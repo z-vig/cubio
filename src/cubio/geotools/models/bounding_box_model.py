@@ -6,6 +6,8 @@ from uuid import UUID, uuid4
 from typing import Literal
 from cubio.types import BBoxDict
 
+from .point_model import PointModel
+
 
 def todms(
     dd: float, coord_type: Literal["lon", "lat"], precision: int = 0
@@ -39,14 +41,6 @@ def todms(
     return f"{degrees}°{minutes}'{seconds:.{precision}f}\"{hemi}"
 
 
-class Point(BaseModel):
-    x: float
-    y: float
-
-    def as_tuple(self) -> tuple[float, float]:
-        return (self.x, self.y)
-
-
 class BoundingBoxModel(BaseModel):
     left: float = Field(
         ..., description="The left (minimum x) coordinate of the bounding box."
@@ -71,24 +65,24 @@ class BoundingBoxModel(BaseModel):
     )
 
     @property
-    def top_left(self) -> Point:
-        return Point(x=self.left, y=self.top)
+    def top_left(self) -> PointModel:
+        return PointModel(x=self.left, y=self.top)
 
     @property
-    def top_right(self) -> Point:
-        return Point(x=self.right, y=self.top)
+    def top_right(self) -> PointModel:
+        return PointModel(x=self.right, y=self.top)
 
     @property
-    def bottom_left(self) -> Point:
-        return Point(x=self.left, y=self.bottom)
+    def bottom_left(self) -> PointModel:
+        return PointModel(x=self.left, y=self.bottom)
 
     @property
-    def bottom_right(self) -> Point:
-        return Point(x=self.right, y=self.bottom)
+    def bottom_right(self) -> PointModel:
+        return PointModel(x=self.right, y=self.bottom)
 
     @property
-    def centroid(self) -> Point:
-        return Point(
+    def centroid(self) -> PointModel:
+        return PointModel(
             x=(self.right + self.left) / 2, y=(self.top + self.bottom) / 2
         )
 
@@ -96,10 +90,10 @@ class BoundingBoxModel(BaseModel):
     def shapely_polygon(self) -> Polygon:
         return Polygon(
             [
-                self.top_left.as_tuple(),
-                self.top_right.as_tuple(),
-                self.bottom_right.as_tuple(),
-                self.bottom_left.as_tuple(),
+                self.top_left.astuple(),
+                self.top_right.astuple(),
+                self.bottom_right.astuple(),
+                self.bottom_left.astuple(),
             ]
         )
 

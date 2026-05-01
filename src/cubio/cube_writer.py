@@ -83,8 +83,6 @@ def write_envi(
         dst=save_fp.with_suffix(".hdr"), use_image_name=True
     )
 
-    print(save_fp)
-
 
 def write_zarr(
     cube_context: CubeContext,

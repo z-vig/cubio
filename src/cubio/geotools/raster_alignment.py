@@ -4,6 +4,7 @@ Functions for aligning one raster dataset to the pixel grid of another.
 
 # Built-Ins
 from typing import Literal
+from pathlib import Path
 
 # Dependencies
 import numpy as np
@@ -86,7 +87,11 @@ def align_datacubes(
     *,
     src_bbox: BoundingBoxModel | Literal["FullArray"] = "FullArray",
     trg_bbox: BoundingBoxModel | Literal["FullArray"] = "FullArray",
-) -> tuple[xr.DataArray, GeotransformModel]:
+    new_filename: Path | None = None,
+) -> tuple[CubeContext, CubeData]:
+    src_cubedata.transpose_to("BIP")
+    trg_cubedata.transpose_to("BIP")
+
     if isinstance(src_bbox, BoundingBoxModel):
         src_arr, src_gtrans = src_cubedata.read_bbox(src_bbox)
     else:
@@ -108,4 +113,24 @@ def align_datacubes(
         trg_gtrans,
     )
 
-    return aligned_array, aligned_gtrans
+    if new_filename is None:
+        align_fp = src_cubecontext.data_filename
+    else:
+        align_fp = new_filename
+    align_builder = src_cubecontext.builder
+    align_builder.update(
+        {
+            "data_filename": align_fp,
+            "crs": trg_cubecontext.crs,
+            "geotransform": aligned_gtrans,
+            "nrows": aligned_array.shape[0],
+            "ncols": aligned_array.shape[1],
+        }
+    )
+
+    aligned_cubedata = CubeData(
+        f"{src_cubedata.name}_{trg_cubedata.name}_alignment", "BIP"
+    )
+    aligned_cubedata.array = aligned_array
+
+    return (CubeContext.from_builder(align_builder), aligned_cubedata)

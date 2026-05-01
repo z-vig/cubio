@@ -1,7 +1,6 @@
 # Dependencies
 import xarray as xr
-
-# import numpy as np
+import numpy as np
 
 # Local
 from cubio.cube_mask import CubeMask, MaskBuilder
@@ -23,8 +22,13 @@ class MaskingMixIn(CubeDataCore):
     applies over the measured dimension (the "back" of the cube).
     """
 
+    def set_masking(self, toggle: bool):
+        self._masking_active = toggle
+
     @property
     def mask(self) -> CubeMask:
+        if not self._masking_active:
+            raise ValueError("Masking is not active for this CubeData object.")
         if not hasattr(self, "_mask"):
             self._builder: MaskBuilder = {
                 "shape": self.shape,
@@ -37,13 +41,19 @@ class MaskingMixIn(CubeDataCore):
 
     @mask.setter
     def mask(self, value: CubeMask) -> None:
+        if not self._masking_active:
+            raise ValueError("Masking is not active for this CubeData object.")
         self._mask = value
 
     @property
     def array(self) -> xr.DataArray:
         super().array
-        masked_arr = self._apply_mask()
-        return self._handle_trimming(masked_arr)
+        if self._masking_active:
+            masked_arr = self._apply_mask()
+            return self._handle_trimming(masked_arr)
+        else:
+            self._array = array_is_set(self._array)
+            return self._array
 
     @array.setter
     def array(self, value: xr.DataArray) -> None:
@@ -82,6 +92,7 @@ class MaskingMixIn(CubeDataCore):
         """Adds a mask to the current cube mask based on the nodata value."""
         valid_array = array_is_set(self._array)
         nodata = valid_array[:, :, 0].drop_vars(self.zdim_name) == self.nodata
+        print(nodata.shape)
         self.mask.add_to_xymask(nodata)
 
     def _apply_mask(
@@ -99,14 +110,12 @@ class MaskingMixIn(CubeDataCore):
             Whether to drop the masked coordinates from the dataarray.
         """
         self._array = array_is_set(self._array)  # Validation
-        # masks = {
-        #     "both": ~self.mask.xymask & ~self.mask.zmask,
-        #     "xy": ~self.mask.xymask,
-        #     "z": ~self.mask.zmask,
-        # }
-        # return self._array
-        # return self._array.where(masks[which], np.nan, drop=False)
-        return self._array
+        masks = {
+            "both": ~self.mask.xymask & ~self.mask.zmask,
+            "xy": ~self.mask.xymask,
+            "z": ~self.mask.zmask,
+        }
+        return self._array.where(masks[which], np.nan, drop=False)
 
     def get_unmasked_array(self, ignore: MaskType = "both") -> xr.DataArray:
         """

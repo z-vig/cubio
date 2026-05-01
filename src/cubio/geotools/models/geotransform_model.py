@@ -8,21 +8,12 @@ from affine import Affine  # type: ignore
 import numpy as np
 
 from .bounding_box_model import BoundingBoxModel
+from .point_model import PointModel
 
 
 class GeographicBoundsError(Exception):
     def __init__(self, message: str) -> None:
         super().__init__(message)
-
-
-class PointModel(BaseModel):
-    """Representation of a ordered pair"""
-
-    x: float
-    y: float
-
-    def astuple(self):
-        return (self.x, self.y)
 
 
 class GeotransformModel(BaseModel):
@@ -50,12 +41,13 @@ class GeotransformModel(BaseModel):
     col_rotation: float
 
     @classmethod
-    def null(cls):
+    def null(cls, northup: bool = True):
+        n = -1 if northup else 1
         return cls(
             upperleft=PointModel(x=0, y=0),
             xres=1,
             row_rotation=0,
-            yres=1,
+            yres=n * 1,
             col_rotation=0,
         )
 
@@ -135,8 +127,8 @@ class GeotransformModel(BaseModel):
         """Given the height and width of a raster, return a bounding box."""
         return BoundingBoxModel(
             left=self.upperleft.x,
-            bottom=self.upperleft.y + height * self.yres,
-            right=self.upperleft.x + width * self.xres,
+            bottom=self.upperleft.y + (height * self.yres),
+            right=self.upperleft.x + (width * self.xres),
             top=self.upperleft.y,
             name="bbox",
         )
@@ -214,3 +206,6 @@ class GeotransformModel(BaseModel):
         for ny in range(height):
             ycoords[ny] = self.pixel_to_map(xpixel=0, ypixel=ny).y
         return xcoords, ycoords
+
+    def force_northup(self):
+        self.yres = -abs(self.yres)

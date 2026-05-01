@@ -1,6 +1,8 @@
 # Built-Ins
 from pathlib import Path
 
+import xarray as xr
+
 # Mixins
 from .masking import MaskingMixIn
 from .geospatial import GeospatialMixIn
@@ -23,7 +25,7 @@ class CubeData(MaskingMixIn, GeospatialMixIn, TransformationMixIn):
     - Handles the geotransform of the data cube.
     """
 
-    def add_shapefile_mask(self, shapefile_fp: str | Path) -> None:
+    def add_shapefile_mask(self, shapefile_fp: str | Path) -> xr.DataArray:
         if self._gtrans is None:
             raise ValueError(
                 "Cannot mask from shapefile without a Geotransform"
@@ -32,3 +34,4 @@ class CubeData(MaskingMixIn, GeospatialMixIn, TransformationMixIn):
             self.ycoords, self.xcoords, shapefile_fp
         )
         self.mask.add_to_xymask(~shapefile_raster)
+        return shapefile_raster

@@ -32,11 +32,11 @@ class ImageOffset(BaseModel):
 
     @property
     def row_slice(self) -> slice:
-        return slice(self.row, self.row + self.height - 1)
+        return slice(self.row, self.row + self.height)
 
     @property
     def col_slice(self) -> slice:
-        return slice(self.column, self.column + self.width - 1)
+        return slice(self.column, self.column + self.width)
 
     def crop_image(
         self, base_image: np.ndarray | xr.DataArray

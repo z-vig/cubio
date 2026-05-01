@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Built-Ins
 from warnings import warn
 
@@ -28,6 +30,12 @@ class GeospatialMixIn(CubeDataCore):
     def geotransform(self, value: GeotransformModel) -> None:
         self._gtrans = value
         self.array = self.array
+
+    @property
+    def bounds(self) -> BoundingBoxModel:
+        return self.geotransform.get_bbox(
+            self.shape.nrows, self.shape.ncolumns
+        )
 
     def _get_current_geotransform(self) -> GeotransformModel:
         if self._gtrans is None:
@@ -86,4 +94,6 @@ class GeospatialMixIn(CubeDataCore):
             col_rotation=self.geotransform.col_rotation,
         )
 
-        return self._array[row_slice, col_slice, :], bbox_gtrans
+        bboxdata = self._array[row_slice, col_slice, :]
+
+        return bboxdata, bbox_gtrans

@@ -40,10 +40,10 @@ def open_shapefile_as_shapely_polygon(
 def raster_from_polygon_list(
     lat_index: LabelLike, lon_index: LabelLike, polygon_list: list[Polygon]
 ) -> xr.DataArray:
-    print("LIST PROCESSING")
     lat_dense, lon_dense = np.meshgrid(lat_index, lon_index)
     points = shapely.points(lon_dense, lat_dense)
     mask_list: list[xr.DataArray] = []
+    shapefile_overlap = False
     for polygon in polygon_list:
         poly_raster = xr.DataArray(
             shapely.contains(polygon, points).T,
@@ -51,14 +51,15 @@ def raster_from_polygon_list(
             dims=("Latitude", "Longitude"),
         )
 
-        if poly_raster is False:
-            raise ValueError(
-                "The polygon lies outside of the provided lat/long grid."
-            )
+        if np.all(poly_raster == 0):
+            continue
 
         mask_list.append(poly_raster)
+        shapefile_overlap = True
 
-        print(poly_raster.coords)
+    if not shapefile_overlap:
+        raise ValueError("Input shapefile does not overlap with Cube Data.")
+
     full_poly_raster = xr.DataArray(
         np.zeros_like(lat_dense, dtype=bool),
         coords={"Latitude": lat_index, "Longitude": lon_index},

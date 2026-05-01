@@ -29,6 +29,7 @@ dependencies = [
     "shapely (>=2.1.2,<3.0.0)",
     "types-geopandas (>=1.1.2.20260120,<2.0.0.0)",
     "numcodecs (==0.15.1)",
+    "types-shapely (>=2.1.0.20260408,<3.0.0.0)",
 ]
 
 

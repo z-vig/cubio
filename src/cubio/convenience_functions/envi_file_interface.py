@@ -112,6 +112,10 @@ def read_measurement_envi_file_context(
     band_names = extract_hdr_band_names(hdr_fp)
     bbl = extract_hdr_bbl(hdr_fp)
     desc = extract_hdr_desc(hdr_fp)
+
+    if band_names == "Band names not found.":
+        raise ValueError("Invalid HDR File, cannot find band names.")
+
     if bbl == "No BBL Found":
         bbl = [1] * len(band_names)
 

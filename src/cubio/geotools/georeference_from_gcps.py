@@ -37,6 +37,7 @@ def georeference_image(
         unref_cube.array = xr.DataArray(unref_cube_array)
 
     # ---- Cropping to extent of GCP group ----
+    print("GCPS FILE NAME: ", gcps_file)
     gcp_group = GCPGroup.from_gcps_file(gcps_file)
     if new_gcps_offset:
         gcp_group.adjust_offset(new_gcps_offset)
@@ -64,6 +65,7 @@ def georeference_image(
 
     else:
         ext = georef_extent
+
     # ---- Resampling Image ----
     resamp_img, gtrans = georeference_satellite_swath(
         satellite_data=offset_cube,
@@ -71,6 +73,15 @@ def georeference_image(
         latitude_backplane=lat,
         proj=prj_definition,
         extent=ext,
+    )
+
+    new_bbox = gtrans.get_bbox(resamp_img.shape[0], resamp_img.shape[1])
+
+    print(
+        f"Georef Change: {ext.bottom_right} --> "
+        f"{new_bbox.bottom_right}\n"
+        f"dx: {ext.right - new_bbox.right}"
+        f"dy: {ext.bottom - new_bbox.bottom}"
     )
 
     return resamp_img, gtrans

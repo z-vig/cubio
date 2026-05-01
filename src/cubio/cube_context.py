@@ -36,6 +36,9 @@ from cubio.envi_hdr_tools import (
     replace_hdr_band_names,
     replace_hdr_description,
     replace_shape_fields,
+    extract_hdr_wavelength_units,
+    extract_hdr_wavelengths,
+    extract_hdr_bbl,
 )
 from cubio.cube_size_tools import CubeSize
 from cubio.cube_data import CubeData
@@ -48,18 +51,18 @@ class ContextBuilder(TypedDict):
     ncols: int
     nrows: int
     nbands: int
-    hdr_off: int
+    hdr_off: NotRequired[int]
     data_type: NumpyDType
     interleave: NotRequired[CubeArrayFormat]
     crs: str
     geotransform: GeotransformModel
-    band_names: list[str]
+    band_names: NotRequired[list[str]]
     nodata: float | int
-    measurement_name: str
-    measurement_units: str
-    measurement_values: list[float]
-    bad_bands: list[int]
-    id: UUID
+    measurement_name: NotRequired[str]
+    measurement_units: NotRequired[str]
+    measurement_values: NotRequired[list[float]]
+    bad_bands: NotRequired[list[int]]
+    id: NotRequired[UUID]
 
 
 class CubeContext(BaseModel):
@@ -92,7 +95,7 @@ class CubeContext(BaseModel):
         ..., description="Geotransform model for the cube."
     )
     band_names: list[str] = Field(default_factory=list)
-    nodata: float | int = Field(default=-999, description="The nodata value.")
+    nodata: float | int = Field(..., description="The nodata value.")
     measurement_name: str = Field(
         default="Measurement",
         description="Name that describes the nature of the measurement along "
@@ -233,6 +236,42 @@ class CubeContext(BaseModel):
         }
         return cls.from_builder(_builder)
 
+    @classmethod
+    def single_band_data(
+        cls,
+        name: str,
+        description: str,
+        data_filename: Path,
+        height: int,
+        width: int,
+        crs: str,
+        geotransform: GeotransformModel,
+        nodata: float | int,
+        interleave: CubeArrayFormat = "BIL",
+        dtype: NumpyDType = NumpyDType.FLOAT32,
+    ) -> Self:
+        _builder: ContextBuilder = {
+            "name": name,
+            "description": description,
+            "data_filename": data_filename,
+            "ncols": width,
+            "nrows": height,
+            "nbands": 1,
+            "hdr_off": 0,
+            "data_type": NumpyDType(dtype),
+            "interleave": interleave,
+            "crs": crs,
+            "geotransform": geotransform,
+            "band_names": [name],
+            "nodata": nodata,
+            "measurement_name": name,
+            "measurement_units": "na",
+            "measurement_values": [0.0],
+            "bad_bands": [1],
+            "id": uuid4(),
+        }
+        return cls.from_builder(_builder)
+
     @field_serializer("interleave", mode="plain")
     def lowercase(self, value: CubeArrayFormat) -> str:
         return value.lower()
@@ -245,6 +284,18 @@ class CubeContext(BaseModel):
             return ustr
         else:
             raise ValueError(f"Invalid interleave: {ustr}")
+
+    @model_validator(mode="after")
+    def set_measurement_values(self) -> Self:
+        current_measval = self.measurement_values
+        if len(current_measval) == 0:
+            self.measurement_values = [float(i) for i in range(self.nbands)]
+
+        if len(self.measurement_values) != self.nbands:
+            raise ValueError(
+                "Length of measurement values must match the number of bands."
+            )
+        return self
 
     @model_validator(mode="after")
     def set_default_bbl(self) -> Self:
@@ -260,14 +311,6 @@ class CubeContext(BaseModel):
                 "Length of bad band list must match the number of bands."
             )
 
-        return self
-
-    @model_validator(mode="after")
-    def check_measurement_values(self) -> Self:
-        if len(self.measurement_values) != self.nbands:
-            raise ValueError(
-                "Length of measurement values must match the number of bands."
-            )
         return self
 
     def set_retrieval_path(self, retrieval_path: Path) -> None:
@@ -339,19 +382,23 @@ class CubeContext(BaseModel):
         replace_hdr_band_names(temp_hdr, self.band_names)
         replace_hdr_description(temp_hdr, self.description)
 
-        with open(temp_hdr, "a") as f:
-            # Still unsure if I need this...
-            # f.write(f"data ignore value = {self.nodata}\n")
-
+        with open(temp_hdr, "a+") as f:
             # These are all new fields.
-            f.write(f"wavelenth units = {self.measurement_units}\n")
-            f.write(
-                "wavelength = "
-                f"{{{",".join([str(i) for i in self.measurement_values])}}}\n"
-            )
-            f.write(
-                "bbl = " f"{{{",".join([str(i) for i in self.bad_bands])}}}\n"
-            )
+            if (
+                extract_hdr_wavelength_units(temp_hdr)
+                == "Wavelength Units not found."
+            ):
+                f.write(f"wavelength units = {self.measurement_units}\n")
+            if extract_hdr_wavelengths(temp_hdr) == "Wavelengths not found.":
+                f.write(
+                    "wavelength = "
+                    f"{{{",".join([str(i) for i in self.measurement_values])}}}\n"  # noqa
+                )
+            if extract_hdr_bbl(temp_hdr) == "No BBL Found":
+                f.write(
+                    "bbl = "
+                    f"{{{",".join([str(i) for i in self.bad_bands])}}}\n"
+                )
         # Renaming the temporary hdr that was created with the temp image.
         shutil.move(temp_hdr, temp_hdr.with_name(temp_hdr.name[1:]))
 

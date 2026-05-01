@@ -8,13 +8,13 @@ from typing import Literal
 def extract_hdr_band_names(
     hdr_fp: str | Path,
 ) -> list[str] | Literal["Band names not found."]:
-    ptrn = re.compile(r"band\s*names\s*=\s*{([\s\S]*)}")
+    ptrn = re.compile(r"band\s*names\s*=\s*{([\s\S]*?)}")
     with open(hdr_fp) as src:
         s = src.read()
     match = re.search(ptrn, s)
     if not match:
-        raise ValueError("Invalid .HDR format: Cannot find band names.")
-    result = match.groups()[0][1:]
+        return "Band names not found."
+    result = match.groups()[0]
     return [i.strip() for i in re.split(r"\s*,\s*\n?", result)]
 
 
@@ -27,6 +27,19 @@ def extract_hdr_wavelengths(
     match = re.search(ptrn, s)
     if not match:
         return "Wavelengths not found."
+    result = match.groups()[0]
+    return [float(i.strip()) for i in re.split(r"\s*,\s*\n?", result)]
+
+
+def extract_hdr_wavelength_units(
+    hdr_fp: str | Path,
+) -> list[float] | Literal["Wavelength Units not found."]:
+    ptrn = re.compile(r"(?<=\n)wavelength units\s*=\s*{([\s\S]*?)}")
+    with open(hdr_fp) as src:
+        s = src.read()
+    match = re.search(ptrn, s)
+    if not match:
+        return "Wavelength Units not found."
     result = match.groups()[0]
     return [float(i.strip()) for i in re.split(r"\s*,\s*\n?", result)]
 
@@ -48,9 +61,20 @@ def extract_hdr_desc(hdr_fp: str | Path) -> str:
         s = src.read()
     match = re.search(ptrn, s)
     if not match:
-        raise ValueError("Invalid .HDR format: Cannot find description.")
+        return "ENVI-compatible Dataset"
     result = match.groups()[0]
     return result
+
+
+def extract_dtype(hdr_fp: str | Path) -> int:
+    ptrn = re.compile(r"data\s*type\s*=\s*(\d)\s*\n")
+    with open(hdr_fp) as src:
+        s = src.read()
+    match = re.search(ptrn, s)
+    if not match:
+        return 4
+    result = match.groups()[0]
+    return int(result)
 
 
 def replace_hdr_band_names(hdr_fp: str | Path, new_band_names: list[str]):
@@ -74,7 +98,7 @@ def replace_hdr_description(hdr_fp: str | Path, new_desc: str):
     if not match:
         raise ValueError("Invalid .HDR format: Cannot find description.")
     result = match.groups()[0]
-    new_hdr_str = s.replace(result, f"\n{textwrap.fill(new_desc, width=80)}")
+    new_hdr_str = s.replace(result, f"{textwrap.fill(new_desc, width=80)}")
     with open(hdr_fp, "w") as dst:
         dst.write(new_hdr_str)
 

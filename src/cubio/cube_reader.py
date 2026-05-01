@@ -14,14 +14,17 @@ from cubio.types import (
     NumpyDType,
     RasterioProfile,
     CubeArrayFormat,
+    hdr_integer_to_dtype,
 )
 from cubio.envi_hdr_tools import (
     extract_hdr_wavelengths,
     extract_hdr_desc,
     extract_hdr_bbl,
     extract_hdr_band_names,
+    extract_dtype,
 )
 from cubio.geotools.models import GeotransformModel
+from cubio.data.crs_wkt_strings import GeographicCRS
 from cubio.cube_size_tools import CubeSize
 from cubio.cube_context import CubeContext, ContextBuilder
 from cubio.cube_data import CubeData
@@ -41,7 +44,7 @@ def read_binary_image_file(
         raise NotImplementedError()
 
 
-def cubedata_from_json_file(
+def cube_from_json(
     json_fp: Path | str, apply_bbl: bool = False
 ) -> tuple[CubeContext, CubeData]:
     """
@@ -58,7 +61,7 @@ def cubedata_from_json_file(
     return ctxt, cdat
 
 
-def cubedata_from_envi_file(
+def cube_from_envi(
     envi_binary_fp: str | Path,
     name: str,
     measurement_name: str = "Wavelength",
@@ -73,6 +76,7 @@ def cubedata_from_envi_file(
     desc = extract_hdr_desc(hdr_fp)
     bbl = extract_hdr_bbl(hdr_fp)
     band_names = extract_hdr_band_names(hdr_fp)
+    dtype = extract_dtype(hdr_fp)
 
     if wvls == "Wavelengths not found.":
         wvls = [float(i) for i in range(prf["count"])]
@@ -81,9 +85,21 @@ def cubedata_from_envi_file(
     if band_names == "Band names not found.":
         band_names = [f"Band{i}" for i in range(prf["count"])]
 
-    interlv = prf.get("interleave", None)
-    if interlv is None:
-        raise ValueError("ENVI File does not specify interleave.")
+    interlv_test = prf.get("interleave", None)
+    interlv: CubeArrayFormat
+    if interlv_test is None or interlv_test.lower() == "band":
+        interlv = "BIP"
+    elif interlv_test.lower() == "pixel":
+        interlv = "BIP"
+    elif interlv_test.lower() == "line":
+        interlv = "BIL"
+    else:
+        interlv = interlv_test
+
+    if prf["crs"] is None:
+        crs_val = str(GeographicCRS.WGS84)
+    else:
+        crs_val = str(prf["crs"])
 
     context_dict: ContextBuilder = {
         "name": name,
@@ -92,10 +108,10 @@ def cubedata_from_envi_file(
         "nrows": prf["height"],
         "ncols": prf["width"],
         "nbands": prf["count"],
-        "crs": str(prf["crs"]),
+        "crs": crs_val,
         "geotransform": GeotransformModel.fromaffine(prf["transform"]),
         "hdr_off": 0,
-        "data_type": NumpyDType.FLOAT32,
+        "data_type": hdr_integer_to_dtype[dtype],
         "interleave": interlv,
         "nodata": -999,
         "band_names": band_names,
@@ -105,15 +121,14 @@ def cubedata_from_envi_file(
         "bad_bands": bbl,
         "id": uuid4(),
     }
-
     ctxt = CubeContext.from_builder(context_dict)
-    ctxt.write_envi_hdr(hdr_fp)
+    ctxt.set_retrieval_path(Path(envi_binary_fp))
     cb = ctxt.lazy_load_data()
 
     return ctxt, cb
 
 
-def cubedata_from_geotiff(
+def cube_from_gtif(
     geotiff_fp: str | Path,
     name: str,
     desc: str,
@@ -141,6 +156,8 @@ def cubedata_from_geotiff(
         interlv = "BIP"
     elif interlv_test.lower() == "pixel":
         interlv = "BIP"
+    elif interlv_test.lower() == "line":
+        interlv = "BIL"
     else:
         interlv = interlv_test
 
