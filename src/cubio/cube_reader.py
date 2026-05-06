@@ -1,3 +1,7 @@
+"""
+Cube reading utilities.
+"""
+
 # Built-Ins
 from pathlib import Path
 from typing import Optional
@@ -16,7 +20,7 @@ from cubio.types import (
     CubeArrayFormat,
     hdr_integer_to_dtype,
 )
-from cubio.envi_hdr_tools import (
+from cubio.cube_context.envi_hdr_tools import (
     extract_hdr_wavelengths,
     extract_hdr_desc,
     extract_hdr_bbl,
@@ -26,13 +30,17 @@ from cubio.envi_hdr_tools import (
 from cubio.geotools.models import GeotransformModel
 from cubio.data.crs_wkt_strings import GeographicCRS
 from cubio.cube_size_tools import CubeSize
-from cubio.cube_context import CubeContext, ContextBuilder
+from cubio.cube_context import CubeContext, CubeDataLoader, ContextBuilder
 from cubio.cube_data import CubeData
 
 
 def read_binary_image_file(
     fp: Path, size: CubeSize, data_type: NumpyDType
 ) -> xr.DataArray:
+    """
+    Read binary raster image into numpy memmap and then returns xarray
+    Dataarray.
+    """
     suff = fp.suffix
     binary_fmt = suffix_to_format_map.get(suff)
     if binary_fmt is not None:
@@ -55,7 +63,8 @@ def cube_from_json(
     json_fp: Path to .json file that can be validated to CubeContext object.
     """
     ctxt: CubeContext = CubeContext.from_json(json_fp)
-    cdat: CubeData = ctxt.lazy_load_data()
+    cb_loader = CubeDataLoader(ctxt)
+    cdat: CubeData = cb_loader.lazy_load_data()
     if apply_bbl:
         cdat.mask.add_to_zmask(ctxt.bbl_mask)
     return ctxt, cdat
@@ -67,6 +76,7 @@ def cube_from_envi(
     measurement_name: str = "Wavelength",
     measurement_unit: str = "nm",
 ) -> tuple[CubeContext, CubeData]:
+    """Reads CubeContext and CubeData from envi file."""
     envi_binary_fp = Path(envi_binary_fp)
     with rio.open(envi_binary_fp, "r") as f:
         prf: RasterioProfile = f.profile
@@ -104,7 +114,7 @@ def cube_from_envi(
     context_dict: ContextBuilder = {
         "name": name,
         "description": desc,
-        "data_filename": Path(Path(envi_binary_fp).stem),
+        "data_filename": Path(envi_binary_fp).stem,
         "nrows": prf["height"],
         "ncols": prf["width"],
         "nbands": prf["count"],
@@ -122,8 +132,10 @@ def cube_from_envi(
         "id": uuid4(),
     }
     ctxt = CubeContext.from_builder(context_dict)
-    ctxt.set_retrieval_path(Path(envi_binary_fp))
-    cb = ctxt.lazy_load_data()
+    ctxt.retrieval_path = Path(envi_binary_fp)
+
+    cb_loader = CubeDataLoader(ctxt)
+    cb = cb_loader.lazy_load_data()
 
     return ctxt, cb
 
@@ -138,6 +150,7 @@ def cube_from_gtif(
     measurement_vals: Optional[list[float]] = None,
     bbl: Optional[list[int]] = None,
 ) -> tuple[CubeContext, CubeData]:
+    """Reads CubeContext and Cubedata from geotiff."""
     geotiff_fp = Path(geotiff_fp)
 
     with rio.open(geotiff_fp) as f:
@@ -164,7 +177,7 @@ def cube_from_gtif(
     context_dict: ContextBuilder = {
         "name": name,
         "description": desc,
-        "data_filename": Path(Path(geotiff_fp).stem),
+        "data_filename": Path(geotiff_fp).stem,
         "nrows": prf["height"],
         "ncols": prf["width"],
         "nbands": prf["count"],
@@ -183,9 +196,10 @@ def cube_from_gtif(
     }
 
     ctxt = CubeContext.from_builder(context_dict)
-    ctxt._retrieval_path = geotiff_fp
+    ctxt.retrieval_path = geotiff_fp
     ctxt.write_json(geotiff_fp.with_suffix(".json"))
 
-    cb = ctxt.lazy_load_data()
+    cb_loader = CubeDataLoader(ctxt)
+    cb = cb_loader.lazy_load_data()
 
     return ctxt, cb

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from cubio.cube_context import CubeContext
+from cubio.cube_context import CubeContext, EnviHeaderWriter
 from cubio.cube_data import CubeData
 from cubio.types import (
     CubeArrayFormat,
@@ -17,8 +17,8 @@ def get_save_directory(
 ) -> Path:
     save_dir: Path
     if dst_fp is None:
-        if cube_context._retrieval_path != "NoRetrieval":
-            save_dir = Path(cube_context._retrieval_path).parent
+        if cube_context.retrieval_path != "NoRetrieval":
+            save_dir = Path(cube_context.retrieval_path).parent
         else:
             raise ValueError(
                 "Cube Context retrieval path is not set. The context object"
@@ -69,7 +69,7 @@ def write_envi(
     save_dir = get_save_directory(cube_context, dst_fp)
     save_fp = Path(
         save_dir,
-        cube_context.data_filename.with_suffix(
+        Path(cube_context.data_filename).with_suffix(
             cube_array_suffix_map[interleave]
         ),
     )
@@ -79,9 +79,8 @@ def write_envi(
     Path(save_fp.with_suffix(".hdr")).unlink()
 
     cube_context.interleave = interleave
-    cube_context.write_envi_hdr(
-        dst=save_fp.with_suffix(".hdr"), use_image_name=True
-    )
+    envi_writer = EnviHeaderWriter(cube_context)
+    envi_writer.to_file(dst=save_fp.with_suffix(".hdr"), use_image_name=True)
 
 
 def write_zarr(
@@ -106,9 +105,11 @@ def write_zarr(
         an error will be returned.
     """
     save_dir = get_save_directory(cube_context, dst_fp)
-    save_fp = Path(save_dir, cube_context.data_filename.with_suffix(".zarr"))
+    save_fp = Path(
+        save_dir, Path(cube_context.data_filename).with_suffix(".zarr")
+    )
     cube_context.interleave = "BIP"
-    cube_context.write_json(cube_context._retrieval_path)
+    cube_context.write_json(cube_context.retrieval_path)
     print(f"Saving zarr: {save_fp}")
     if not save_fp.exists():
         cube_data.array.to_zarr(

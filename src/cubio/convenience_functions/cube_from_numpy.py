@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import xarray as xr
 
@@ -24,7 +22,7 @@ def cube_from_numpy(
         bandlbls = [f"Band {n}" for n in np.arange(arr.shape[2])]
     cc = CubeContext.from_builder(
         {
-            "data_filename": Path(name),
+            "data_filename": name,
             "name": name,
             "description": "From numpy array.",
             "ncols": arr.shape[1],

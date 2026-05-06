@@ -44,6 +44,7 @@ class CubeMask:
         self.ydim_name = ydim_name
         self.zdim_name = zdim_name
 
+    # ==== Inner Constructors ====
     @classmethod
     def transparent(
         cls,

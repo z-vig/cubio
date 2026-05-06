@@ -4,7 +4,6 @@ Functions for aligning one raster dataset to the pixel grid of another.
 
 # Built-Ins
 from typing import Literal
-from pathlib import Path
 
 # Dependencies
 import numpy as np
@@ -15,7 +14,7 @@ import xarray as xr
 
 from cubio.geotools.models import GeotransformModel, BoundingBoxModel
 from cubio.cube_data import CubeData
-from cubio.cube_context import CubeContext
+from cubio.cube_context.cube_context import CubeContext
 
 
 def align_raster_data(
@@ -87,7 +86,7 @@ def align_datacubes(
     *,
     src_bbox: BoundingBoxModel | Literal["FullArray"] = "FullArray",
     trg_bbox: BoundingBoxModel | Literal["FullArray"] = "FullArray",
-    new_filename: Path | None = None,
+    new_filename: str | None = None,
 ) -> tuple[CubeContext, CubeData]:
     src_cubedata.transpose_to("BIP")
     trg_cubedata.transpose_to("BIP")

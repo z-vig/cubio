@@ -1,8 +1,7 @@
 from typing import Optional
-from pathlib import Path
 
 from cubio.cube_data.cube_data import CubeData
-from cubio.cube_context import CubeContext
+from cubio.cube_context.cube_context import CubeContext
 from cubio.geotools.models.bounding_box_model import bbox_intersection
 from cubio.geotools.models import BoundingBoxModel
 
@@ -22,7 +21,7 @@ def crop_cubedata(
     *,
     name: Optional[str] = None,
     desc: Optional[str] = None,
-    new_filename: Optional[Path] = None,
+    new_filename: Optional[str] = None,
 ) -> tuple[CubeContext, CubeData]:
     if not _bbox_in_cubedata(cubedata, bbox):
         raise ValueError("Data and bounding box do not overlap for cropping.")
@@ -37,9 +36,7 @@ def crop_cubedata(
             "bounding box."
         )
     if new_filename is None:
-        new_filename = cubecontext.data_filename.with_stem(
-            f"{cubecontext.data_filename}_cropped"
-        )
+        new_filename = f"{cubecontext.data_filename}_cropped"
 
     cropped_bldr = cubecontext.builder
     cropped_bldr.update(

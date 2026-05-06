@@ -13,7 +13,7 @@ from .georeference_satellite_swath import (
     ProjectionDefinition,
 )
 from .generate_geoloc_backplane import latlong_from_gcp_group
-from cubio.cube_context import CubeContext
+from cubio.cube_context import CubeContext, CubeDataLoader
 from cubio.cube_data import CubeData
 from cubio.geotools.models import ImageOffset, GeotransformModel
 
@@ -30,7 +30,8 @@ def georeference_image(
     # ---- Reading Image Context and Lazy Loading ----
     unreferenced_context = CubeContext.from_json(cubio_json_file)
     if unref_cube_array is None:
-        unref_cube = unreferenced_context.lazy_load_data()
+        cb_loader = CubeDataLoader(unreferenced_context)
+        unref_cube = cb_loader.lazy_load_data()
         unref_cube.transpose_to("BIP")
     elif unref_cube_array is not None:
         unref_cube = CubeData("unref_cube", format="BIP")
@@ -129,7 +130,7 @@ def save_georeference(
             "geotransform": gtrans,
             "nrows": resamp_img.shape[0],
             "ncols": resamp_img.shape[1],
-            "data_filename": Path(save_fp.stem),
+            "data_filename": save_fp.stem,
         }
     )
 

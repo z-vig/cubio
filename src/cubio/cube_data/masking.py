@@ -1,3 +1,9 @@
+"""
+Masking operations for CubeData class.
+"""
+
+# pylint: disable=attribute-defined-outside-init
+
 # Dependencies
 import xarray as xr
 import numpy as np
@@ -22,11 +28,9 @@ class MaskingMixIn(CubeDataCore):
     applies over the measured dimension (the "back" of the cube).
     """
 
-    def set_masking(self, toggle: bool):
-        self._masking_active = toggle
-
     @property
     def mask(self) -> CubeMask:
+        """Mask property of cube data."""
         if not self._masking_active:
             raise ValueError("Masking is not active for this CubeData object.")
         if not hasattr(self, "_mask"):
@@ -44,22 +48,6 @@ class MaskingMixIn(CubeDataCore):
         if not self._masking_active:
             raise ValueError("Masking is not active for this CubeData object.")
         self._mask = value
-
-    @property
-    def array(self) -> xr.DataArray:
-        super().array
-        if self._masking_active:
-            masked_arr = self._apply_mask()
-            return self._handle_trimming(masked_arr)
-        else:
-            self._array = array_is_set(self._array)
-            return self._array
-
-    @array.setter
-    def array(self, value: xr.DataArray) -> None:
-        # This line is directly from property inheritance example:
-        # https://gist.github.com/Susensio/979259559e2bebcd0273f1a95d7c1e79
-        super(MaskingMixIn, type(self)).array.fset(self, value)  # type: ignore
 
     def reset_mask(self, which: MaskType = "both") -> None:
         """
@@ -92,7 +80,6 @@ class MaskingMixIn(CubeDataCore):
         """Adds a mask to the current cube mask based on the nodata value."""
         valid_array = array_is_set(self._array)
         nodata = valid_array[:, :, 0].drop_vars(self.zdim_name) == self.nodata
-        print(nodata.shape)
         self.mask.add_to_xymask(nodata)
 
     def _apply_mask(
@@ -134,24 +121,3 @@ class MaskingMixIn(CubeDataCore):
             return self._apply_mask("z")
         elif ignore == "z":
             return self._apply_mask("xy")
-
-    def _handle_trimming(self, current_array: xr.DataArray) -> xr.DataArray:
-        if self._trim_direction == "All":
-            current_array = current_array.dropna(self.xdim_name, how="all")
-            current_array = current_array.dropna(self.ydim_name, how="all")
-            current_array = current_array.dropna(self.zdim_name, how="all")
-        elif self._trim_direction == "SpatialTrim":
-            current_array = current_array.dropna(self.xdim_name, how="all")
-            current_array = current_array.dropna(self.ydim_name, how="all")
-        elif self._trim_direction == "x":
-            current_array = current_array.dropna(self.xdim_name, how="all")
-        elif self._trim_direction == "y":
-            current_array = current_array.dropna(self.ydim_name, how="all")
-        elif self._trim_direction == "z":
-            current_array = current_array.dropna(self.zdim_name, how="all")
-        elif self._trim_direction == "NoTrim":
-            pass
-        return current_array
-
-    def set_array_trimming(self, trim_direction: TrimDirection = "All"):
-        self._trim_direction = trim_direction

@@ -7,10 +7,10 @@ import rasterio as rio  # type: ignore
 
 # Local Imports
 from cubio.types import RasterioProfile, NumpyDType
-from cubio.cube_context import CubeContext, ContextBuilder
+from cubio.cube_context.cube_context import CubeContext, ContextBuilder
 from cubio.geotools.models import GeotransformModel
 from cubio.data.crs_wkt_strings import GeographicCRS
-from cubio.envi_hdr_tools import (
+from cubio.cube_context.envi_hdr_tools import (
     extract_hdr_wavelengths,
     extract_hdr_bbl,
     extract_hdr_band_names,
@@ -63,7 +63,7 @@ def read_spectral_envi_file_context(fp: Path | str, name: str) -> CubeContext:
     context_dict: ContextBuilder = {
         "name": name,
         "description": desc,
-        "data_filename": Path(Path(fp).name),
+        "data_filename": Path(fp).name,
         "nrows": prf["height"],
         "ncols": prf["width"],
         "nbands": prf["count"],
@@ -128,7 +128,7 @@ def read_measurement_envi_file_context(
     context_dict: ContextBuilder = {
         "name": name,
         "description": desc,
-        "data_filename": Path(Path(fp).name),
+        "data_filename": Path(fp).name,
         "nrows": prf["height"],
         "ncols": prf["width"],
         "nbands": prf["count"],

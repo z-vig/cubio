@@ -5,7 +5,6 @@ grid and resasmpling it to another
 
 # Built-Ins
 from typing import Literal
-from pathlib import Path
 import os
 
 # Dependencies
@@ -22,7 +21,7 @@ from cubio.geotools.models import (
     BoundingBoxModel,
     PointModel,
 )
-from cubio.cube_context import CubeContext
+from cubio.cube_context.cube_context import CubeContext
 from cubio.cube_data import CubeData
 
 
@@ -136,7 +135,7 @@ def resample_regular_cubedata(
     trg_crs: CRS,
     *,
     trg_array_size: tuple[int, int] | None = None,
-    new_filename: Path | None = None,
+    new_filename: str | None = None,
     ignore_celestial_body: bool = False,
 ) -> tuple[CubeContext, CubeData]:
     if ignore_celestial_body:
