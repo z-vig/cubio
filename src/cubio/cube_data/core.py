@@ -95,8 +95,6 @@ class CubeDataCore:
 
         self._trim_direction: TrimDirection = "NoTrim"
 
-        self._masking_active: bool = False
-
     @property
     def fmt(self) -> CubeArrayFormat:
         return self._fmt

@@ -10,7 +10,7 @@ import numpy as np
 
 # Local
 from cubio.cube_mask import CubeMask, MaskBuilder
-from cubio.types import MaskType, TrimDirection
+from cubio.types import MaskType
 from .core import CubeDataCore
 from .validation import array_is_set
 
@@ -31,8 +31,6 @@ class MaskingMixIn(CubeDataCore):
     @property
     def mask(self) -> CubeMask:
         """Mask property of cube data."""
-        if not self._masking_active:
-            raise ValueError("Masking is not active for this CubeData object.")
         if not hasattr(self, "_mask"):
             self._builder: MaskBuilder = {
                 "shape": self.shape,
@@ -45,8 +43,6 @@ class MaskingMixIn(CubeDataCore):
 
     @mask.setter
     def mask(self, value: CubeMask) -> None:
-        if not self._masking_active:
-            raise ValueError("Masking is not active for this CubeData object.")
         self._mask = value
 
     def reset_mask(self, which: MaskType = "both") -> None:
