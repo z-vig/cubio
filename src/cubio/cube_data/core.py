@@ -20,6 +20,7 @@ from cubio.types import (
 )
 from cubio.geotools.models import GeotransformModel
 from cubio.cube_size_tools import get_cube_size, CubeSize
+from cubio.cube_mask import CubeDims
 
 # SubPackage-Level Imports
 from .validation import array_is_set
@@ -27,6 +28,7 @@ from .validation import array_is_set
 
 class CubeDataCore:
     """
+    # CubeDataCore
     Core CubeData class. Built for storing the data and metadata of an image
     cube.
 
@@ -106,6 +108,10 @@ class CubeDataCore:
         self.rowindex = idx.row
         self.colindex = idx.col
         self.bandindex = idx.band
+
+    @property
+    def cube_dims(self) -> CubeDims:
+        return CubeDims(self.ydim_name, self.xdim_name, self.zdim_name)
 
     @property
     def shape(self) -> CubeSize:

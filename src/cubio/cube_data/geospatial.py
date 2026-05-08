@@ -18,6 +18,11 @@ from .validation import array_is_set
 
 
 class GeospatialMixIn(CubeDataCore):
+    """
+    # GeospatialMixIn
+    Adds geospatial manipulation to the CubeData class.
+    """
+
     @property
     def geotransform(self) -> GeotransformModel:
         if self._gtrans is None:
