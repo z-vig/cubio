@@ -16,14 +16,13 @@ from cubio.types import (
     LabelLike,
     CubeArrayFormat,
     FORMAT_INDICES,
-    TrimDirection,
 )
 from cubio.geotools.models import GeotransformModel
 from cubio.cube_size_tools import get_cube_size, CubeSize
-from cubio.cube_mask import CubeDims
+from cubio.cube_dims import CubeDims
 
 # SubPackage-Level Imports
-from .validation import array_is_set
+from .validation import array_is_set, array_dims_match
 
 
 class CubeDataCore:
@@ -66,17 +65,14 @@ class CubeDataCore:
         name: str,
         format: CubeArrayFormat,
         *,
-        xcoord_label: Optional[LabelLike] = None,
-        ycoord_label: Optional[LabelLike] = None,
-        zcoord_label: Optional[LabelLike] = None,
-        x_name: str = "XAxis",
-        y_name: str = "YAxis",
-        z_name: str = "ZAxis",
+        cube_dims: CubeDims = CubeDims.default(),
         geotransform: Optional[GeotransformModel] = None,
+        crs: Optional[str] = None,
         nodata: float | int = -999,
     ) -> None:
         self.name: str = name  # Name of the Cube
         self._gtrans = geotransform  # Geotransform, if there is one.
+        self._crs = crs  # CRS, if there is one.
         self.nodata = nodata  # No data value, default = -999
 
         # Setting the format to one of {"BIL", "BIP", "BSQ"}
@@ -84,18 +80,12 @@ class CubeDataCore:
         self.fmt = self._fmt
 
         self._array: xr.DataArray | None = None
+        self._xcoords: Optional[LabelLike] = None
+        self._ycoords: Optional[LabelLike] = None
+        self._zcoords: Optional[LabelLike] = None
 
-        self._xcoords = xcoord_label
-        self._ycoords = ycoord_label
-        self._zcoords = zcoord_label
-
-        self.xdim_name = x_name
-        self.ydim_name = y_name
-        self.zdim_name = z_name
-
+        self.cube_dims = cube_dims
         self._shape: CubeSize | None = None
-
-        self._trim_direction: TrimDirection = "NoTrim"
 
     @property
     def fmt(self) -> CubeArrayFormat:
@@ -110,10 +100,6 @@ class CubeDataCore:
         self.bandindex = idx.band
 
     @property
-    def cube_dims(self) -> CubeDims:
-        return CubeDims(self.ydim_name, self.xdim_name, self.zdim_name)
-
-    @property
     def shape(self) -> CubeSize:
         if self._shape is None:
             self._array = array_is_set(self._array)
@@ -123,20 +109,59 @@ class CubeDataCore:
     @property
     def xcoords(self) -> LabelLike:
         if self._xcoords is None:
-            self._xcoords = np.arange(0, self.shape.ncolumns)
+            raise RuntimeError("X Coords not set.")
         return self._xcoords
+
+    @xcoords.setter
+    def xcoords(self, xcoords: LabelLike) -> None:
+        self._array = array_is_set(self._array)
+        update_len = len(xcoords)
+        current_len = self._array.sizes[self.cube_dims.hdim]
+        if update_len != current_len:
+            raise ValueError(
+                f"Length of xcoords: ({update_len}) does not "
+                f"match current data array size: ({current_len})"
+            )
+        self._array = self._array.assign_coords({self.cube_dims.hdim: xcoords})
+        self._xcoords = xcoords
 
     @property
     def ycoords(self) -> LabelLike:
         if self._ycoords is None:
-            self._ycoords = np.arange(0, self.shape.nrows)
+            raise RuntimeError("Y Coords not set.")
         return self._ycoords
+
+    @ycoords.setter
+    def ycoords(self, ycoords: LabelLike) -> None:
+        self._array = array_is_set(self._array)
+        update_len = len(ycoords)
+        current_len = self._array.sizes[self.cube_dims.vdim]
+        if update_len != current_len:
+            raise ValueError(
+                f"Length of ycoords: ({update_len}) does not "
+                f"match current data array size: ({current_len})"
+            )
+        self._array = self._array.assign_coords({self.cube_dims.vdim: ycoords})
+        self._ycoords = ycoords
 
     @property
     def zcoords(self) -> LabelLike:
         if self._zcoords is None:
-            self._zcoords = np.arange(0, self.shape.nbands)
+            raise RuntimeError("Z Coords not set.")
         return self._zcoords
+
+    @zcoords.setter
+    def zcoords(self, zcoords: LabelLike) -> None:
+        self._array = array_is_set(self._array)
+        update_len = len(zcoords)
+        current_len = self._array.sizes[self.cube_dims.zdim]
+        if update_len != current_len:
+            raise ValueError(
+                f"Length of zcoords: ({update_len}) does not "
+                f"match current data array size: ({current_len})"
+            )
+        self._array = self._array.assign_coords({self.cube_dims.zdim: zcoords})
+        self._zcoords = zcoords
 
     @property
     def array(self) -> xr.DataArray:
@@ -146,68 +171,64 @@ class CubeDataCore:
 
     @array.setter
     def array(self, value: xr.DataArray) -> None:
+        if not array_dims_match(value, self.cube_dims):
+            raise ValueError(
+                f"DataArray has dims: {value.dims} that do not match "
+                f"the registered CubeDims: {self.cube_dims.as_list()}"
+            )
         if value.ndim == 2:
-            value = value.expand_dims(dim={self.zdim_name: 1}, axis=2)
+            print("EXPANDING DIMS")
+            value = value.expand_dims(
+                dim={self.cube_dims.zdim: 1}, axis=self.bandindex
+            )
         self._shape = get_cube_size(value, self.fmt)
-        self._array = self._create_labeled_dataarray(value)  # Labeled array.
+        self._array = self.set_array_coords(value)
+        self._xcoords = np.array(self._array.coords[self.cube_dims.hdim])
+        self._ycoords = np.array(self._array.coords[self.cube_dims.vdim])
+        self._zcoords = np.array(self._array.coords[self.cube_dims.zdim])
+        self._post_array_setting_config()
 
-    def _create_dims_tuple(self) -> tuple[str, str, str]:
-        """
-        Creates a tuple of string dim names in the correct order for the
-        current array format.
-        """
-        _n = np.array(
-            [self.ydim_name, self.xdim_name, self.zdim_name]
-        )  # names
-        dims = (_n[self.rowindex], _n[self.colindex], _n[self.bandindex])
-        return dims
-
-    def _create_coords_dict(self) -> dict[str, LabelLike]:
-        # All coordinate arrays are index arrays, if not set.
-        coordinate_dict = {
-            self.xdim_name: self.xcoords,
-            self.ydim_name: self.ycoords,
-            self.zdim_name: self.zcoords,
-        }
-        return coordinate_dict
-
-    def _create_labeled_dataarray(self, value: xr.DataArray) -> xr.DataArray:
-        """
-        Creates a new xarray dataarray from an existing dataarray but with the
-        correct coords and dimension names in the correct order for the current
-        cube format.
-        """
-        dims = self._create_dims_tuple()
-        crds = self._create_coords_dict()
-        return xr.DataArray(
-            value.data,
-            coords=crds,
-            dims=dims,
+    def set_array_coords(self, value: xr.DataArray) -> xr.DataArray:
+        value = value.assign_coords(
+            {
+                self.cube_dims.vdim: np.arange(
+                    0, value.sizes[self.cube_dims.vdim]
+                ),
+                self.cube_dims.hdim: np.arange(
+                    0, value.sizes[self.cube_dims.hdim]
+                ),
+                self.cube_dims.zdim: np.arange(
+                    0, value.sizes[self.cube_dims.zdim]
+                ),
+            }
         )
+        return value
 
-    def reset_coords(
+    def update_cube_dims(
         self,
-        xcoord_label: Optional[LabelLike] = None,
-        ycoord_label: Optional[LabelLike] = None,
-        zcoord_label: Optional[LabelLike] = None,
+        cube_dims: Optional[CubeDims] = None,
+        *,
+        vdim_name: Optional[str] = None,
+        hdim_name: Optional[str] = None,
+        zdim_name: Optional[str] = None,
     ) -> None:
-        """
-        Resets data coordinates. If any arg is None, it will be reset to
-        either an index array (x, y and z) or a lat/long array set by the
-        geotransform (x and y).
+        arr = array_is_set(self._array)
+        if cube_dims is None:
+            cube_dims = CubeDims(
+                vdim_name or self.cube_dims.vdim,
+                hdim_name or self.cube_dims.hdim,
+                zdim_name or self.cube_dims.zdim,
+            )
 
-        Parameters
-        ----------
-        x_labels: Optional[LabelLike]
-            Optional labels for the x dimension. If not provided, integer
-            indexing will be used.
-        y_labels: Optional[LabelLike]
-            Optional labels for the y dimension. If not provided, integer
-            indexing will be used.
-        z_labels: Optional[LabelLike]
-            Optional labels for the z dimension. If not provided, integer
-            indexing will be used.
-        """
-        self._xcoords = xcoord_label
-        self._ycoords = ycoord_label
-        self._zcoords = zcoord_label
+        arr = arr.rename(
+            {
+                self.cube_dims.vdim: cube_dims.vdim,
+                self.cube_dims.hdim: cube_dims.hdim,
+                self.cube_dims.zdim: cube_dims.zdim,
+            }
+        )
+        self.cube_dims = cube_dims
+        self._array = arr
+
+    def _post_array_setting_config(self) -> None:
+        return None

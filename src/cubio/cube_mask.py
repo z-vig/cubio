@@ -31,13 +31,13 @@ def split_xarray_cube(
         cube_dims.hdim: slice(None),
         cube_dims.zdim: 0,
     }
-    z_dim = {
+    z_dims = {
         cube_dims.vdim: 0,
         cube_dims.hdim: 0,
         cube_dims.zdim: slice(None),
     }
-    spatial_arr = data_array.isel(spatial_dims)
-    z_arr = data_array.isel(z_dim)
+    spatial_arr = data_array.isel(spatial_dims, drop=True)
+    z_arr = data_array.isel(z_dims, drop=True)
     return spatial_arr, z_arr
 
 
@@ -95,7 +95,7 @@ class CubeMask:
         self._zmask = self._z_array.copy(data=mask)
 
     def add_to_xymask(self, new_mask: xr.DataArray) -> None:
-        self._xymask |= new_mask
+        self._xymask = self._xymask | new_mask
 
     def add_to_zmask(self, new_mask: xr.DataArray) -> None:
         self._zmask |= new_mask

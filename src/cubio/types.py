@@ -134,11 +134,6 @@ def is_valid_mask_type(value: str) -> TypeGuard[ImageSuffix]:
     return value in valid_mask_types
 
 
-TrimDirection: TypeAlias = Literal[
-    "NoTrim", "SpatialTrim", "All", "x", "y", "z"
-]
-
-
 class BBoxDict(TypedDict):
     top: float
     bottom: float

@@ -15,6 +15,7 @@ from .cube_reader import (
     cube_from_gtif,
 )
 from .convenience_functions.cube_from_numpy import cube_from_numpy
+from .cube_dims import CubeDims
 
 __all__ = [
     "CubeContext",
@@ -25,4 +26,5 @@ __all__ = [
     "cube_from_envi",
     "cube_from_gtif",
     "cube_from_numpy",
+    "CubeDims",
 ]

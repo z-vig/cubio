@@ -66,7 +66,9 @@ def cube_from_json(
     cb_loader = CubeDataLoader(ctxt)
     cdat: CubeData = cb_loader.lazy_load_data()
     if apply_bbl:
-        cdat.mask.add_to_zmask(ctxt.bbl_mask)
+        cdat.mask.add_to_zmask(ctxt.get_bbl_mask())
+    cdat.zcoords = ctxt.measurement_values
+    cdat.update_cube_dims(zdim_name=ctxt.measurement_name)
     return ctxt, cdat
 
 

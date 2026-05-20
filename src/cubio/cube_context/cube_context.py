@@ -109,14 +109,6 @@ class CubeContext(BaseModel):
         return self.shape.as_tuple(self.interleave)
 
     @property
-    def bbl_mask(self) -> xr.DataArray:
-        """Returns a mask for the bad bands based on the bad_bands list."""
-        return xr.DataArray(
-            [not bool(i) for i in self.bad_bands],
-            coords={self.measurement_name: self.measurement_values},
-        )
-
-    @property
     def builder(self) -> ContextBuilder:
         """
         Returns a builder dictionary for constructing a CubeContext object.
@@ -156,6 +148,19 @@ class CubeContext(BaseModel):
         self._retrieval_path = Path(retrieval_path)
 
     # ==== Measurement Queries =====
+    def get_bbl_mask(
+        self, measurement_name: str | None = None
+    ) -> xr.DataArray:
+        """Returns a mask for the bad bands based on the bad_bands list."""
+        if measurement_name is None:
+            name = self.measurement_name
+        else:
+            name = measurement_name
+        return xr.DataArray(
+            [not bool(i) for i in self.bad_bands],
+            coords={name: self.measurement_values},
+        )
+
     def get_measurement_mask(
         self, min_val: float, max_val: float
     ) -> xr.DataArray:

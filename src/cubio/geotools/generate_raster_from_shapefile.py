@@ -38,17 +38,19 @@ def open_shapefile_as_shapely_polygon(
 
 
 def raster_from_polygon_list(
-    lat_index: LabelLike, lon_index: LabelLike, polygon_list: list[Polygon]
+    lat_index: tuple[str, LabelLike],
+    lon_index: tuple[str, LabelLike],
+    polygon_list: list[Polygon],
 ) -> xr.DataArray:
-    lat_dense, lon_dense = np.meshgrid(lat_index, lon_index)
+    lat_dense, lon_dense = np.meshgrid(lat_index[1], lon_index[1])
     points = shapely.points(lon_dense, lat_dense)
     mask_list: list[xr.DataArray] = []
     shapefile_overlap = False
     for polygon in polygon_list:
         poly_raster = xr.DataArray(
             shapely.contains(polygon, points).T,
-            coords={"Latitude": lat_index, "Longitude": lon_index},
-            dims=("Latitude", "Longitude"),
+            coords={lat_index[0]: lat_index[1], lon_index[0]: lon_index[1]},
+            dims=(lat_index[0], lon_index[0]),
         )
 
         if np.all(poly_raster == 0):
@@ -62,8 +64,8 @@ def raster_from_polygon_list(
 
     full_poly_raster = xr.DataArray(
         np.zeros_like(lat_dense, dtype=bool),
-        coords={"Latitude": lat_index, "Longitude": lon_index},
-        dims=("Longitude", "Latitude"),
+        coords={lat_index[0]: lat_index[1], lon_index[0]: lon_index[1]},
+        dims=(lon_index[0], lat_index[0]),
     )
     for i in mask_list:
         full_poly_raster = full_poly_raster | i
@@ -72,7 +74,9 @@ def raster_from_polygon_list(
 
 
 def raster_from_single_polygon(
-    lat_index: LabelLike, lon_index: LabelLike, polygon: Polygon
+    lat_index: tuple[str, LabelLike],
+    lon_index: tuple[str, LabelLike],
+    polygon: Polygon,
 ) -> xr.DataArray:
     """
     Creates a raster that highlights the location of a shapely Polygon object
@@ -80,9 +84,9 @@ def raster_from_single_polygon(
 
     Parameters
     ----------
-    lat_index: LabelLike
+    lat_index: tuple[str, LabelLike]
         1-D Latitude index of the uniform geolocation array.
-    lon_index: LabelLike
+    lon_index: tuple[str, LabelLike]
         1-D Longitude index of the uniform geolocation array.
     polygon: Polygon
         Shapely polygon object.
@@ -92,12 +96,12 @@ def raster_from_single_polygon(
     Because the lat/long grid must be uniformly spaced, only two 1-D arrays
     are required to create the entire lat/long grid.
     """
-    lat_dense, lon_dense = np.meshgrid(lat_index, lon_index)
+    lat_dense, lon_dense = np.meshgrid(lat_index[1], lon_index[1])
     points = shapely.points(lon_dense, lat_dense)
     poly_raster = xr.DataArray(
         shapely.contains(polygon, points).T,
-        coords={"Latitude": lat_index, "Longitude": lon_index},
-        dims=("Latitude", "Longitude"),
+        coords={lat_index[0]: lat_index[1], lon_index[0]: lon_index[1]},
+        dims=(lat_index[0], lon_index[0]),
     )
     if poly_raster is False:
         raise ValueError(
@@ -107,25 +111,27 @@ def raster_from_single_polygon(
 
 
 def raster_from_shapefile(
-    lat_index: LabelLike, lon_index: LabelLike, shapefile_fp: str | Path
+    lat_coord: tuple[str, LabelLike],
+    lon_coord: tuple[str, LabelLike],
+    shapefile_fp: str | Path,
 ) -> xr.DataArray:
     """
     Generates a boolean raster from a uniform lat/long backplane.
 
     Parameters
     ----------
-    lat_index: LabelLike
-        1-D Latitude index of the uniform geolocation array.
-    lon_index: LabelLike
-        1-D Longitude index of the uniform geolocation array.
+    lat_index: tuple[str, LabelLike]
+        1-D Latitude index of the uniform geolocation array, with its name.
+    lon_index: tuple[str, LabelLike]
+        1-D Longitude index of the uniform geolocation array, with its name.
     shapefile_fp: str | Path
         Path to shapefile.
     """
     poly = open_shapefile_as_shapely_polygon(shapefile_fp)
     if isinstance(poly, Polygon):
-        arr = raster_from_single_polygon(lat_index, lon_index, poly)
+        arr = raster_from_single_polygon(lat_coord, lon_coord, poly)
     elif isinstance(poly, list):
-        arr = raster_from_polygon_list(lat_index, lon_index, poly)
+        arr = raster_from_polygon_list(lat_coord, lon_coord, poly)
     else:
         raise ValueError("Invalid polygon.")
     return arr

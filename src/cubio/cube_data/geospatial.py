@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-# Built-Ins
-from warnings import warn
-
 # Dependencies
 import xarray as xr
 
 # Local Imports
-from cubio.types import LabelLike
 from cubio.geotools.models import (
     GeotransformModel,
     PointModel,
@@ -42,40 +38,30 @@ class GeospatialMixIn(CubeDataCore):
             self.shape.nrows, self.shape.ncolumns
         )
 
+    def set_array_coords(self, value: xr.DataArray) -> xr.DataArray:
+        super().set_array_coords(value)
+        xcrds, ycrds = self.geotransform.generate_coords(
+            width=self.shape.ncolumns, height=self.shape.nrows
+        )
+        crd_dict = {
+            self.cube_dims.vdim: ycrds,
+            self.cube_dims.hdim: xcrds,
+            self.cube_dims.zdim: value.coords[self.cube_dims.zdim],
+        }
+        self._xcoords = xcrds
+        self._ycoords = ycrds
+        value = value.assign_coords(crd_dict)
+        return value
+
+    def _post_array_setting_config(self) -> None:
+        super()._post_array_setting_config()
+        self.update_cube_dims(vdim_name="Latitude", hdim_name="Longitude")
+        return None
+
     def _get_current_geotransform(self) -> GeotransformModel:
         if self._gtrans is None:
             raise ValueError("Geotransform is not set yet.")
-        return GeotransformModel(
-            upperleft=PointModel(
-                x=self.array.coords["Longitude"][0],
-                y=self.array.coords["Latitude"][0],
-            ),
-            xres=self._gtrans.xres,
-            row_rotation=self._gtrans.row_rotation,
-            yres=self._gtrans.yres,
-            col_rotation=self._gtrans.col_rotation,
-        )
-
-    def _create_coords_dict(self) -> dict[str, LabelLike]:
-        # X and Y labels should be replaced with coordinates, if geotransform
-        # is set, otherwise, fall back on core behavior.
-        if self._gtrans is not None:
-            self._xcoords, self._ycoords = self.geotransform.generate_coords(
-                width=self.shape.ncolumns, height=self.shape.nrows
-            )
-        return super()._create_coords_dict()
-
-    def _create_dims_tuple(self) -> tuple[str, str, str]:
-        # X and Y dimension names should be Longitude and Latitude if the
-        # geotransform is set.
-        if self._gtrans is not None:
-            if self.xdim_name not in ["XAxis", "Longitude"]:
-                warn("Custom X dimension name is replaced by `Longitude`.")
-            if self.ydim_name not in ["YAxis", "Latitude"]:
-                warn("Custom Y dimension name is replaced by `Latitude`.")
-            self.xdim_name = "Longitude"
-            self.ydim_name = "Latitude"
-        return super()._create_dims_tuple()
+        return self._gtrans
 
     def read_bbox(
         self, bbox: BoundingBoxModel

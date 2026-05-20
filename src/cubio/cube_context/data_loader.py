@@ -13,36 +13,58 @@ from cubio.types import (
     is_valid_image_suffix,
     image_suffix_priority,
     suffix_to_format_map,
+    FORMAT_INDICES,
 )
+from cubio.cube_dims import CubeDims
 
 from .cube_context import CubeContext
 
-DataLoaderFunction: TypeAlias = Callable[[Path, CubeData, CubeContext], None]
+DataLoaderFunction: TypeAlias = Callable[
+    [Path, CubeDims, CubeData, CubeContext], None
+]
 
 
 def load_envi_compatible(
-    data_fp: Path, empty_cube_data: CubeData, cube_context: CubeContext
+    data_fp: Path,
+    cube_dims: CubeDims,
+    empty_cube_data: CubeData,
+    cube_context: CubeContext,
 ) -> None:
     mmap = np.memmap(
         data_fp,
         dtype=np.dtype(cube_context.data_type),
         shape=cube_context.shape_tuple,
     )
-    empty_cube_data.array = xr.DataArray(mmap)
+
+    idx = FORMAT_INDICES[cube_context.interleave]
+    dim_list_unsorted = [
+        (idx.row, cube_dims.vdim),
+        (idx.col, cube_dims.hdim),
+        (idx.band, cube_dims.zdim),
+    ]
+    dim_list = [i for _, i in sorted(dim_list_unsorted)]
+    xr_data = xr.DataArray(mmap, dims=dim_list)
+    empty_cube_data.array = xr_data
 
 
 def load_zarr(
-    data_fp: Path, empty_cube_data: CubeData, cube_context: CubeContext
+    data_fp: Path,
+    cube_dims: CubeDims,
+    empty_cube_data: CubeData,
+    cube_context: CubeContext,
 ) -> None:
     arr = xr.open_zarr(data_fp).data
-    empty_cube_data.ydim_name = str(arr.dims[0])
-    empty_cube_data.xdim_name = str(arr.dims[1])
-    empty_cube_data.zdim_name = str(arr.dims[2])
+    empty_cube_data.cube_dims.vdim = str(arr.dims[0])
+    empty_cube_data.cube_dims.hdim = str(arr.dims[1])
+    empty_cube_data.cube_dims.zdim = str(arr.dims[2])
     empty_cube_data.array = arr
 
 
 def load_gtiff(
-    data_fp: Path, empty_cube_data: CubeData, cube_context: CubeContext
+    data_fp: Path,
+    cube_dims: CubeDims,
+    empty_cube_data: CubeData,
+    cube_context: CubeContext,
 ) -> None:
     zarr = tiff.imread(data_fp, aszarr=True)
     print("READING TIFF")
@@ -59,7 +81,10 @@ def load_gtiff(
 
 
 def load_hdf5(
-    data_fp: Path, empty_cube_data: CubeData, cube_context: CubeContext
+    data_fp: Path,
+    cube_dims: CubeDims,
+    empty_cube_data: CubeData,
+    cube_context: CubeContext,
 ) -> None:
     raise NotImplementedError("HDF5 loading has not been implemented yet.")
 
@@ -129,22 +154,24 @@ class CubeDataLoader:
     def __init__(
         self,
         cube_context: CubeContext,
+        cube_dims: CubeDims = CubeDims.default(),
         json_fp: Path | Literal["NoRetrieval"] = "NoRetrieval",
     ) -> None:
         self.cc = cube_context
+        self.cdims = cube_dims
         self._retrieval_path = json_fp
         self._validator = CubeDataLoaderValidator(cube_context)
 
-    def _get_empty_cubedata(self) -> CubeData:
+    def _get_empty_cubedata(self, cube_dims: CubeDims) -> CubeData:
         """
         Using the cube context attribute, return an empty CubeData object.
         """
         return CubeData(
             self.cc.name,
             self.cc.interleave,
-            zcoord_label=self.cc.measurement_values,
-            z_name=self.cc.measurement_name,
+            cube_dims=cube_dims,
             geotransform=self.cc.geotransform,
+            crs=self.cc.crs,
             nodata=self.cc.nodata,
         )
 
@@ -164,13 +191,16 @@ class CubeDataLoader:
 
         return image_data_file
 
-    def lazy_load_data(self, search_dir: str | Path | None = None) -> CubeData:
+    def lazy_load_data(
+        self,
+        search_dir: str | Path | None = None,
+    ) -> CubeData:
         search_dir = self._validator.search_dir(search_dir)
-        dat = self._get_empty_cubedata()
+        dat = self._get_empty_cubedata(self.cdims)
         image_data_file = self._find_image_data(search_dir)
         print(f"Lazy Loading from: {image_data_file}")
         suffix = self._validator.image_suffix(image_data_file)
 
-        LOAD_DISPATCH[suffix](image_data_file, dat, self.cc)
+        LOAD_DISPATCH[suffix](image_data_file, self.cdims, dat, self.cc)
 
         return dat

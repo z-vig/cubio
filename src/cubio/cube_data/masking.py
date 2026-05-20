@@ -8,7 +8,6 @@ import numpy as np
 
 # Local
 from cubio.cube_mask import CubeMask
-from cubio.cube_dims import CubeDims
 from cubio.types import MaskType
 from .core import CubeDataCore
 from .validation import array_is_set
@@ -29,17 +28,14 @@ class MaskingMixIn(CubeDataCore):
 
     @property
     def masked_array(self) -> xr.DataArray:
-        return self._apply_mask()
+        return self.apply_mask()
 
     @property
     def mask(self) -> CubeMask:
         """Mask property of cube data."""
         if not hasattr(self, "_mask"):
             self._mask = CubeMask.transparent(
-                self.array,
-                cube_dims=CubeDims(
-                    self.ydim_name, self.xdim_name, self.zdim_name
-                ),
+                self.array, cube_dims=self.cube_dims
             )
         return self._mask
 
@@ -47,7 +43,7 @@ class MaskingMixIn(CubeDataCore):
     def mask(self, value: CubeMask) -> None:
         self._mask = value
 
-    def reset_mask(self, which: MaskType = "both") -> None:
+    def reset_mask(self, *, which: MaskType = "both") -> None:
         """
         Resets the current cube mask.
 
@@ -56,23 +52,30 @@ class MaskingMixIn(CubeDataCore):
         which: MaskType
             Which mask(s) to reset: "both", "xy" or "z".
         """
+        old_xymask = self.mask.get_xymask()
+        old_zmask = self.mask.get_zmask()
         if which == "both":
-            self.mask = CubeMask.transparent(self.array)
+            self.mask = CubeMask.transparent(
+                self.array, cube_dims=self.cube_dims
+            )
         elif which == "xy":
-            old_zmask = self.mask.get_zmask().data
-            self.mask = CubeMask.transparent(self.array)
+            self.mask = CubeMask.transparent(
+                self.array, cube_dims=self.cube_dims
+            )
             self.mask.add_to_zmask(old_zmask)
         elif which == "z":
-            old_xymask = self.mask.get_xymask().data
-            self.mask = CubeMask.transparent(self.array)
+
+            self.mask = CubeMask.transparent(
+                self.array, cube_dims=self.cube_dims
+            )
             self.mask.add_to_xymask(old_xymask)
 
     def add_nodata_mask(self) -> None:
         """Adds a mask to the current cube mask based on the nodata value."""
-        nodata_here = (self.array == self.nodata).any(dim=self.zdim_name)
-        self.mask.add_to_xymask(nodata_here.data)
+        nodata_here = (self.array == self.nodata).any(dim=self.cube_dims.zdim)
+        self.mask.add_to_xymask(nodata_here)
 
-    def _apply_mask(
+    def apply_mask(
         self,
         which: MaskType = "both",
     ) -> xr.DataArray:
