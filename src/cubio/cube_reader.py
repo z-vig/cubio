@@ -53,7 +53,7 @@ def read_binary_image_file(
 
 
 def cube_from_json(
-    json_fp: Path | str, apply_bbl: bool = False
+    json_fp: Path | str, apply_bbl: bool = True
 ) -> tuple[CubeContext, CubeData]:
     """
     Reads the json context and loads the data for an image cube.
@@ -65,10 +65,13 @@ def cube_from_json(
     ctxt: CubeContext = CubeContext.from_json(json_fp)
     cb_loader = CubeDataLoader(ctxt)
     cdat: CubeData = cb_loader.lazy_load_data()
-    if apply_bbl:
-        cdat.mask.add_to_zmask(ctxt.get_bbl_mask())
+
     cdat.zcoords = ctxt.measurement_values
     cdat.update_cube_dims(zdim_name=ctxt.measurement_name)
+
+    if apply_bbl:
+        cdat.mask.add_to_zmask(ctxt.get_bbl_mask())
+
     return ctxt, cdat
 
 

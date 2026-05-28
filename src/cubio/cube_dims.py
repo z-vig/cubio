@@ -4,6 +4,19 @@ from dataclasses import dataclass
 
 @dataclass
 class CubeDims:
+    """
+    Represents the dimension names of an image cube
+
+    Parameters
+    ----------
+    vdim: str
+        Name of the vertical dimension.
+    hdim: str
+        Name of the horizontal dimension.
+    zdim: str
+        Name of the measurement dimension.
+    """
+
     vdim: str
     hdim: str
     zdim: str

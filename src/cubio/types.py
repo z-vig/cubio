@@ -23,6 +23,13 @@ class FormatIndices:
     col: int
     band: int
 
+    def get_dim_names(self) -> list[str]:
+        posible_dims = {"Xdim": self.col, "Ydim": self.row, "Zdim": self.band}
+        sorted_dims = [
+            i[0] for i in sorted(posible_dims.items(), key=lambda x: x[1])
+        ]
+        return sorted_dims
+
 
 FORMAT_INDICES: dict[CubeArrayFormat, FormatIndices] = {
     "BIL": FormatIndices(0, 2, 1),
