@@ -4,34 +4,35 @@ Cube reading utilities.
 
 # Built-Ins
 from pathlib import Path
-from typing import Optional
+from uuid import uuid4
+
+import numpy as np
+import rasterio as rio  # type: ignore
 
 # Dependencies
 import xarray as xr
-import numpy as np
-import rasterio as rio  # type: ignore
-from uuid import uuid4
+
+from cubio.cube_context import ContextBuilder, CubeContext, CubeDataLoader
+from cubio.cube_context.envi_hdr_tools import (
+    extract_dtype,
+    extract_hdr_band_names,
+    extract_hdr_bbl,
+    extract_hdr_desc,
+    extract_hdr_wavelengths,
+)
+from cubio.cube_data import CubeData
+from cubio.cube_size_tools import CubeSize
+from cubio.data.crs_wkt_strings import GeographicCRS
+from cubio.geotools.models import GeotransformModel
 
 # Local Imports
 from cubio.types import (
-    suffix_to_format_map,
+    CubeArrayFormat,
     NumpyDType,
     RasterioProfile,
-    CubeArrayFormat,
     hdr_integer_to_dtype,
+    suffix_to_format_map,
 )
-from cubio.cube_context.envi_hdr_tools import (
-    extract_hdr_wavelengths,
-    extract_hdr_desc,
-    extract_hdr_bbl,
-    extract_hdr_band_names,
-    extract_dtype,
-)
-from cubio.geotools.models import GeotransformModel
-from cubio.data.crs_wkt_strings import GeographicCRS
-from cubio.cube_size_tools import CubeSize
-from cubio.cube_context import CubeContext, CubeDataLoader, ContextBuilder
-from cubio.cube_data import CubeData
 
 
 def read_binary_image_file(
@@ -103,7 +104,7 @@ def cube_from_envi(
     interlv_test = prf.get("interleave", None)
     interlv: CubeArrayFormat
     if interlv_test is None or interlv_test.lower() == "band":
-        interlv = "BIP"
+        interlv = "BSQ"
     elif interlv_test.lower() == "pixel":
         interlv = "BIP"
     elif interlv_test.lower() == "line":
@@ -151,9 +152,9 @@ def cube_from_gtif(
     desc: str,
     measurement_name: str = "Measurement",
     measurement_unit: str = "na",
-    band_names: Optional[list[str]] = None,
-    measurement_vals: Optional[list[float]] = None,
-    bbl: Optional[list[int]] = None,
+    band_names: list[str] | None = None,
+    measurement_vals: list[float] | None = None,
+    bbl: list[int] | None = None,
 ) -> tuple[CubeContext, CubeData]:
     """Reads CubeContext and Cubedata from geotiff."""
     geotiff_fp = Path(geotiff_fp)
@@ -171,7 +172,7 @@ def cube_from_gtif(
     interlv_test = prf.get("interleave", None)
     interlv: CubeArrayFormat
     if interlv_test is None or interlv_test.lower() == "band":
-        interlv = "BIP"
+        interlv = "BSQ"
     elif interlv_test.lower() == "pixel":
         interlv = "BIP"
     elif interlv_test.lower() == "line":

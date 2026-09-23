@@ -2,13 +2,12 @@
 Masking operations for CubeData class.
 """
 
-# Dependencies
-import xarray as xr
 import numpy as np
+import xarray as xr
 
-# Local
 from cubio.cube_mask import CubeMask
 from cubio.types import MaskType
+
 from .core import CubeDataCore
 from .validation import array_is_set
 

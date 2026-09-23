@@ -1,15 +1,15 @@
-from typing import TypeAlias, Union, TypedDict, Optional
+from typing import Literal, TypeAlias, TypedDict
 
+import dask.array as da
 import numpy as np
 import xarray as xr
-import dask.array as da
 
-from cubio.cube_data import CubeData
 from cubio.cube_context import CubeContext
-from cubio.types import NumpyDType, CubeArrayFormat, FORMAT_INDICES
+from cubio.cube_data import CubeData
 from cubio.geotools.models import GeotransformModel
+from cubio.types import FORMAT_INDICES, CubeArrayFormat, NumpyDType
 
-SupportedArray: TypeAlias = Union[np.ndarray, da.Array, xr.DataArray]
+SupportedArray: TypeAlias = np.ndarray | da.Array | xr.DataArray
 
 
 class ShapeDict(TypedDict):
@@ -28,7 +28,7 @@ def _validate_supported_array(
         "Zdim": np.arange(array.shape[idx.band]),
     }
     dims = idx.get_dim_names()
-    if isinstance(array, np.ndarray) or isinstance(array, da.Array):
+    if isinstance(array, (np.ndarray, da.Array)):
         return xr.DataArray(array, coords=crds, dims=dims)
     else:
         return array
@@ -43,6 +43,7 @@ def build_cube_context(
     nodata: float,
     measvals: list[float],
     bandlbls: list[str],
+    bbl: list[int],
 ) -> CubeContext:
     cc = CubeContext.from_builder(
         {
@@ -57,6 +58,7 @@ def build_cube_context(
             "measurement_values": measvals,
             "band_names": bandlbls,
             "measurement_units": "nm",
+            "bad_bands": bbl,
         }
     )
     return cc
@@ -65,30 +67,49 @@ def build_cube_context(
 def cube_from_numpy(
     array: SupportedArray,
     format: CubeArrayFormat,
-    cube_context: Optional[CubeContext] = None,
+    cube_context: CubeContext | None = None,
     *,
-    name: Optional[str] = None,
-    crs: Optional[str] = None,
-    gtrans: Optional[GeotransformModel] = None,
+    name: str | None = None,
+    crs: str | None = None,
+    gtrans: GeotransformModel | None = None,
     nodata: float = -999.0,
-    measvals: Optional[list[float]] = None,
-    bandlbls: Optional[list[str]] = None,
+    measvals: list[float] | Literal["default"] | None = None,
+    bandlbls: list[str] | Literal["default"] | None = None,
+    bbl: list[int] | Literal["default"] | None = None,
 ) -> tuple[CubeContext, CubeData]:
     arr = _validate_supported_array(array, format)
     idx = FORMAT_INDICES[format]
 
     if cube_context is not None:
-        name = cube_context.name
-        crs = cube_context.crs
-        gtrans = cube_context.geotransform
-        nodata = cube_context.nodata
-        measvals = cube_context.measurement_values
-        bandlbls = cube_context.band_names
-    else:
+        if name is None:
+            name = cube_context.name
+        if crs is None:
+            crs = cube_context.crs
+        if gtrans is None:
+            gtrans = cube_context.geotransform
+        if nodata is None:
+            nodata = cube_context.nodata
+
         if measvals is None:
+            measvals = cube_context.measurement_values
+        elif measvals == "default":
             measvals = [float(i) for i in np.arange(arr.shape[idx.band])]
+
         if bandlbls is None:
+            bandlbls = cube_context.band_names
+        elif bandlbls == "default":
             bandlbls = [f"Band {n}" for n in np.arange(arr.shape[idx.band])]
+        if bbl is None:
+            bbl = cube_context.bad_bands
+        elif bbl == "default":
+            bbl = [1] * len(measvals)
+    else:
+        if (measvals is None) or (measvals == "default"):
+            measvals = [float(i) for i in np.arange(arr.shape[idx.band])]
+        if (bandlbls is None) or (bandlbls == "default"):
+            bandlbls = [f"Band {n}" for n in np.arange(arr.shape[idx.band])]
+        if (bbl is None) or (bbl == "default"):
+            bbl = [1] * len(measvals)
         values = {
             "name": name,
             "crs": crs,
@@ -112,11 +133,22 @@ def cube_from_numpy(
     }
 
     cc = build_cube_context(
-        name, shape_dict, arr.dtype, crs, gtrans, nodata, measvals, bandlbls
+        name,
+        shape_dict,
+        arr.dtype,
+        crs,
+        gtrans,
+        nodata,
+        measvals,
+        bandlbls,
+        bbl,
     )
+    cc._retrieval_path = "NoRetrieval"
     cd = CubeData(cc.name, format)
-    cd.array = arr
+    cd.array = arr.assign_coords({cd.cube_dims.zdim: cc.measurement_values})
     cd.geotransform = gtrans
+
+    cc.measurement_name = cd.cube_dims.zdim
 
     return cc, cd
 

@@ -5,7 +5,6 @@ Tools for dealing with the shape/size interpretation of an image cube array.
 
 # Built-ins
 from dataclasses import dataclass
-from typing import Literal
 
 # Dependencies
 import numpy as np
@@ -27,7 +26,7 @@ class CubeSize:
         elif interleave == "BIP":
             return (self.nrows, self.ncolumns, self.nbands)
         elif interleave == "BSQ":
-            return (self.nbands, self.ncolumns, self.nrows)
+            return (self.nbands, self.nrows, self.ncolumns)
 
 
 def get_cube_size(
@@ -38,14 +37,14 @@ def get_cube_size(
     elif format == "BIP":
         lines, samples, bands = arr.shape
     elif format == "BSQ":
-        bands, samples, lines = arr.shape
+        bands, lines, samples = arr.shape
 
     return CubeSize(lines, samples, bands)
 
 
 def transpose_cube(
     src: CubeArrayFormat,
-    dst: CubeArrayFormat | Literal["RASTERIO"],
+    dst: CubeArrayFormat,
     arr: xr.DataArray,
 ):
     if src == "BIL":
@@ -54,8 +53,6 @@ def transpose_cube(
         elif dst == "BIP":
             return arr.transpose(*(arr.dims[0], arr.dims[2], arr.dims[1]))
         elif dst == "BSQ":
-            return arr.transpose(*(arr.dims[1], arr.dims[2], arr.dims[0]))
-        elif dst == "RASTERIO":
             return arr.transpose(*(arr.dims[1], arr.dims[0], arr.dims[2]))
     elif src == "BIP":
         if dst == "BIL":
@@ -63,15 +60,11 @@ def transpose_cube(
         elif dst == "BIP":
             return arr
         elif dst == "BSQ":
-            return arr.transpose(*(arr.dims[2], arr.dims[1], arr.dims[0]))
-        elif dst == "RASTERIO":
             return arr.transpose(*(arr.dims[2], arr.dims[0], arr.dims[1]))
     elif src == "BSQ":
         if dst == "BIL":
-            return arr.transpose(*(arr.dims[2], arr.dims[0], arr.dims[1]))
+            return arr.transpose(*(arr.dims[1], arr.dims[0], arr.dims[2]))
         elif dst == "BIP":
-            return arr.transpose(*(arr.dims[2], arr.dims[1], arr.dims[0]))
+            return arr.transpose(*(arr.dims[1], arr.dims[2], arr.dims[0]))
         elif dst == "BSQ":
             return arr
-        elif dst == "RASTERIO":
-            return arr.transpose(*(arr.dims[0], arr.dims[2], arr.dims[1]))

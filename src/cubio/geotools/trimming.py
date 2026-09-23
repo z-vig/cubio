@@ -19,6 +19,41 @@ class TrimResult:
     hindex: slice
 
 
+NULL_SLICE = slice(None, None)
+
+
+def trim_by_slice(
+    data: xr.DataArray,
+    cube_dims: CubeDims,
+    vslice: slice = NULL_SLICE,
+    hslice: slice = NULL_SLICE,
+    zslice: slice = NULL_SLICE,
+) -> TrimResult:
+    data = data.isel(
+        {
+            cube_dims.vdim: vslice,
+            cube_dims.hdim: hslice,
+            cube_dims.zdim: zslice,
+        }
+    )
+
+    upper_left_x = data.coords[cube_dims.hdim][0]
+    upper_left_y = data.coords[cube_dims.vdim][0]
+    lower_right_x = data.coords[cube_dims.hdim][-1]
+    lower_right_y = data.coords[cube_dims.vdim][-1]
+
+    new_gtrans = GeotransformModel.fromarraysize(
+        upper_left_y,
+        upper_left_x,
+        lower_right_y,
+        lower_right_x,
+        data.sizes[cube_dims.vdim],
+        data.sizes[cube_dims.hdim],
+    )
+
+    return TrimResult(data, new_gtrans, vslice, hslice)
+
+
 def trim_nan_borders(data: xr.DataArray, cube_dims: CubeDims) -> TrimResult:
     # All valid data
     valid_data = data.notnull().any(dim=cube_dims.zdim)
@@ -39,29 +74,8 @@ def trim_nan_borders(data: xr.DataArray, cube_dims: CubeDims) -> TrimResult:
 
     vslice = slice(first_valid_row, last_valid_row)
     hslice = slice(first_valid_col, last_valid_col)
-    data = data.isel(
-        {
-            cube_dims.vdim: vslice,
-            cube_dims.hdim: hslice,
-            cube_dims.zdim: slice(None),
-        }
-    )
 
-    upper_left_x = data.coords[cube_dims.hdim][0]
-    upper_left_y = data.coords[cube_dims.vdim][0]
-    lower_right_x = data.coords[cube_dims.hdim][-1]
-    lower_right_y = data.coords[cube_dims.vdim][-1]
-
-    new_gtrans = GeotransformModel.fromarraysize(
-        upper_left_y,
-        upper_left_x,
-        lower_right_y,
-        lower_right_x,
-        data.sizes[cube_dims.vdim],
-        data.sizes[cube_dims.hdim],
-    )
-
-    return TrimResult(data, new_gtrans, vslice, hslice)
+    return trim_by_slice(data, cube_dims, vslice, hslice)
 
 
 def trim_cubedata(data: CubeData) -> None:

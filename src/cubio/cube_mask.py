@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 # Built-Ins
-from typing_extensions import Self
+from typing import Self
+
+import dask.array as da
+import numpy as np
 
 # Dependencies
 import xarray as xr
-import numpy as np
-import dask.array as da
 
 from cubio.cube_dims import CubeDims
+
+default_cubedims = CubeDims.hyperspectral()
 
 
 def split_xarray_cube(
     data_array: xr.DataArray,
-    cube_dims: CubeDims = CubeDims.hyperspectral(),
+    cube_dims: CubeDims = default_cubedims,
 ) -> tuple[xr.DataArray, xr.DataArray]:
     """
     Splits an xarray that represents a data cube into a spatial array and
@@ -49,7 +52,7 @@ class CubeMask:
         xy_mask: xr.DataArray,
         z_mask: xr.DataArray,
         name: str = "",
-        cube_dims: CubeDims = CubeDims.hyperspectral(),
+        cube_dims: CubeDims = default_cubedims,
     ) -> None:
         self.name = name
         self._spatial_array, self._z_array = split_xarray_cube(
@@ -63,16 +66,11 @@ class CubeMask:
     def transparent(
         cls,
         data_array: xr.DataArray,
-        cube_dims: CubeDims = CubeDims.hyperspectral(),
+        cube_dims: CubeDims = default_cubedims,
     ) -> Self:
-        image_shape = (
-            len(data_array.coords[cube_dims.vdim]),
-            len(data_array.coords[cube_dims.hdim]),
-        )
-        measurement_shape = len(data_array.coords[cube_dims.zdim])
         spatial, z = split_xarray_cube(data_array, cube_dims)
-        xy_mask = spatial.copy(data=da.zeros(shape=image_shape, dtype=np.bool))
-        z_mask = z.copy(data=np.zeros(measurement_shape, dtype=bool))
+        xy_mask = spatial.copy(data=da.zeros(shape=spatial.shape, dtype=bool))
+        z_mask = z.copy(data=np.zeros(z.shape, dtype=bool))
 
         return cls(
             data_array=data_array,

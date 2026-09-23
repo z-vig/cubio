@@ -1,11 +1,12 @@
 # Built-ins
 from typing import Literal
-from typing_extensions import Self
+
+import numpy as np
+from affine import Affine  # type: ignore
 
 # Dependencies
 from pydantic import BaseModel
-from affine import Affine  # type: ignore
-import numpy as np
+from typing_extensions import Self
 
 from .bounding_box_model import BoundingBoxModel
 from .point_model import PointModel
@@ -147,9 +148,8 @@ class GeotransformModel(BaseModel):
             self.upperleft.y + ypixel * self.yres + xpixel * self.col_rotation
         )
 
-        if convention == "globe":
-            if xmap < 0:
-                xmap += 360
+        if (convention == "globe") and (xmap < 0):
+            xmap += 360
         return PointModel(x=xmap, y=ymap)
 
     def map_to_pixel(self, xmap: float, ymap: float) -> PointModel:

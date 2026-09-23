@@ -1,8 +1,8 @@
-from typing import TypedDict, NotRequired
+from typing import NotRequired, TypedDict
 from uuid import UUID
 
-from cubio.types import NumpyDType, CubeArrayFormat
 from cubio.geotools.models import GeotransformModel
+from cubio.types import CubeArrayFormat, NumpyDType
 
 
 class ContextBuilder(TypedDict):

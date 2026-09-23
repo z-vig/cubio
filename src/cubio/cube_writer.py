@@ -1,40 +1,18 @@
 from pathlib import Path
 from typing import Literal
 
-from cubio.cube_context import CubeContext, EnviHeaderWriter
-from cubio.cube_data import CubeData
-from cubio.types import (
-    CubeArrayFormat,
-    cube_array_suffix_map,
-    RasterioProfile,
-)
-
 import rasterio as rio  # type: ignore
 
-
-def get_save_directory(
-    cube_context: CubeContext, dst_fp: str | Path | None = None
-) -> Path:
-    save_dir: Path
-    if dst_fp is None:
-        if cube_context.retrieval_path != "NoRetrieval":
-            save_dir = Path(cube_context.retrieval_path).parent
-        else:
-            raise ValueError(
-                "Cube Context retrieval path is not set. The context object"
-                " was likely created in a script, rather than loaded from "
-                "json."
-            )
-    else:
-        save_dir = Path(dst_fp).parent
-    return save_dir
+from cubio.cube_context import CubeContext, EnviHeaderWriter
+from cubio.cube_data import CubeData
+from cubio.types import CubeArrayFormat, RasterioProfile, cube_array_suffix_map
 
 
 def write_envi(
     cube_context: CubeContext,
     cube_data: CubeData,
     interleave: CubeArrayFormat,
-    dst_fp: Path | str | None = None,
+    save_directory: Path | str,
 ) -> None:
     """
     Writes an ENVI-compatible file.
@@ -48,11 +26,8 @@ def write_envi(
     interleave: CubeArrayFormat
         Desired interleave format for the output file. Must be one of "BIP",
         "BIL", or "BSQ".
-    dst_fp: Path | str | None, optional.
-        Path to save directory. File name is automatically set by cube context.
-        File directory is either set by the function arg or by the retrieval
-        path of the Cube Context, if it is set. If this value is not set,
-        an error will be returned.
+    dst_fp: Path | str.
+        Path to save directory.
     """
     prf: RasterioProfile = {
         "height": cube_context.shape.nrows,
@@ -66,16 +41,17 @@ def write_envi(
         "transform": cube_context.geotransform.toaffine(),
     }
 
-    save_dir = get_save_directory(cube_context, dst_fp)
+    if not Path(save_directory).exists():
+        Path(save_directory).mkdir(parents=True)
     save_fp = Path(
-        save_dir,
+        save_directory,
         Path(cube_context.data_filename).with_suffix(
             cube_array_suffix_map[interleave]
         ),
     )
-    r_cube = cube_data.transpose_to_rasterio()
+    cube_data.transpose_to("BSQ")
     with rio.open(save_fp, "w", **prf) as f:
-        f.write(r_cube)
+        f.write(cube_data.array)
     Path(save_fp.with_suffix(".hdr")).unlink()
 
     cube_context.interleave = interleave
@@ -86,7 +62,7 @@ def write_envi(
 def write_zarr(
     cube_context: CubeContext,
     cube_data: CubeData,
-    dst_fp: Path | str | None = None,
+    save_directory: Path | str,
     mode: Literal["w"] = "w",
 ) -> None:
     """
@@ -104,9 +80,8 @@ def write_zarr(
         path of the Cube Context, if it is set. If this value is not set,
         an error will be returned.
     """
-    save_dir = get_save_directory(cube_context, dst_fp)
     save_fp = Path(
-        save_dir, Path(cube_context.data_filename).with_suffix(".zarr")
+        save_directory, Path(cube_context.data_filename).with_suffix(".zarr")
     )
     cube_context.interleave = "BIP"
     cube_context.write_json(cube_context.retrieval_path)

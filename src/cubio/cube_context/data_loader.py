@@ -1,27 +1,28 @@
-from pathlib import Path
-from typing import Literal, TypeAlias
 from collections.abc import Callable
+from pathlib import Path
+from typing import Literal
 
-import numpy as np
-import xarray as xr
-import tifffile as tiff
 import dask.array as dsk_array
-
+import numpy as np
+import tifffile as tiff
+import xarray as xr
 from cubio.cube_data import CubeData
-from cubio.types import (
-    ImageSuffix,
-    is_valid_image_suffix,
-    image_suffix_priority,
-    suffix_to_format_map,
-    FORMAT_INDICES,
-)
 from cubio.cube_dims import CubeDims
+from cubio.types import (
+    FORMAT_INDICES,
+    ImageSuffix,
+    image_suffix_priority,
+    is_valid_image_suffix,
+    suffix_to_format_map,
+)
 
 from .cube_context import CubeContext
 
-DataLoaderFunction: TypeAlias = Callable[
+type DataLoaderFunction = Callable[
     [Path, CubeDims, CubeData, CubeContext], None
 ]
+
+DEFAULT_CUBEDIMS = CubeDims.default()
 
 
 def load_envi_compatible(
@@ -66,17 +67,20 @@ def load_gtiff(
     empty_cube_data: CubeData,
     cube_context: CubeContext,
 ) -> None:
+    with tiff.TiffFile(data_fp) as tif:
+        nodata = float(tif.pages[0].tags["GDAL_NODATA"].value)  # type: ignore
     zarr = tiff.imread(data_fp, aszarr=True)
     print("READING TIFF")
     darr = dsk_array.from_zarr(zarr, chunks="auto")
     if darr.ndim == 2:
-        da = xr.DataArray(darr, dims=("y", "x"))
+        da = xr.DataArray(darr, dims=("Ydim", "Xdim"))
     elif darr.ndim == 3:
-        da = xr.DataArray(darr, dims=("y", "x", "z"))
+        da = xr.DataArray(darr, dims=("Ydim", "Xdim", "Zdim"))
     else:
         raise ValueError(
             "Loaded data has an invalid number of dimensions: " f"{darr.ndim}."
         )
+    da = da.where(da != nodata, np.nan)
     empty_cube_data.array = da
 
 
@@ -154,7 +158,7 @@ class CubeDataLoader:
     def __init__(
         self,
         cube_context: CubeContext,
-        cube_dims: CubeDims = CubeDims.default(),
+        cube_dims: CubeDims = DEFAULT_CUBEDIMS,
         json_fp: Path | Literal["NoRetrieval"] = "NoRetrieval",
     ) -> None:
         self.cc = cube_context
@@ -203,4 +207,15 @@ class CubeDataLoader:
 
         LOAD_DISPATCH[suffix](image_data_file, self.cdims, dat, self.cc)
 
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
+        return dat
         return dat

@@ -3,13 +3,14 @@ from pathlib import Path
 
 import xarray as xr
 
+from cubio.geotools.generate_raster_from_shapefile import raster_from_shapefile
+
+from .clone import CloneMixIn
+from .geospatial import GeospatialMixIn
+
 # Mixins
 from .masking import MaskingMixIn
-from .geospatial import GeospatialMixIn
 from .transformation import TransformationMixIn
-from .clone import CloneMixIn
-
-from cubio.geotools.generate_raster_from_shapefile import raster_from_shapefile
 
 
 class CubeData(MaskingMixIn, GeospatialMixIn, TransformationMixIn, CloneMixIn):

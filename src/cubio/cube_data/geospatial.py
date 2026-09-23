@@ -5,10 +5,11 @@ import xarray as xr
 
 # Local Imports
 from cubio.geotools.models import (
+    BoundingBoxModel,
     GeotransformModel,
     PointModel,
-    BoundingBoxModel,
 )
+
 from .core import CubeDataCore
 from .validation import array_is_set
 
@@ -50,13 +51,12 @@ class GeospatialMixIn(CubeDataCore):
         }
         self._xcoords = xcrds
         self._ycoords = ycrds
-        value = value.assign_coords(crd_dict)
-        return value
+        new_array = value.assign_coords(crd_dict)
+        return new_array
 
     def _post_array_setting_config(self) -> None:
         super()._post_array_setting_config()
         self.update_cube_dims(vdim_name="Latitude", hdim_name="Longitude")
-        return None
 
     def _get_current_geotransform(self) -> GeotransformModel:
         if self._gtrans is None:

@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import TypeAlias, Literal, TypeGuard, TypedDict, NotRequired
 from enum import StrEnum
-from rasterio.crs import CRS  # type: ignore
-from affine import Affine  # type: ignore
+from typing import Literal, NotRequired, TypeAlias, TypedDict, TypeGuard
+
 import numpy as np
+from affine import Affine  # type: ignore
+from rasterio.crs import CRS  # type: ignore
 
 CubeArrayFormat: TypeAlias = Literal["BIL", "BIP", "BSQ"]
 cube_array_formats: list[CubeArrayFormat] = ["BIL", "BIP", "BSQ"]
@@ -34,7 +35,7 @@ class FormatIndices:
 FORMAT_INDICES: dict[CubeArrayFormat, FormatIndices] = {
     "BIL": FormatIndices(0, 2, 1),
     "BIP": FormatIndices(0, 1, 2),
-    "BSQ": FormatIndices(2, 1, 0),
+    "BSQ": FormatIndices(1, 2, 0),
 }
 
 
@@ -145,4 +146,5 @@ class BBoxDict(TypedDict):
     top: float
     bottom: float
     left: float
+    right: float
     right: float

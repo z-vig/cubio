@@ -1,30 +1,30 @@
 # Built-ins
-from typing import Literal, Union, overload
-from typing_extensions import Self
 from pathlib import Path
+from typing import Literal, Self, overload
 from uuid import UUID, uuid4
 
 # Dependencies
 import numpy as np
+import xarray as xr
 from pydantic import (
     BaseModel,
-    field_serializer,
-    model_validator,
     Field,
-    field_validator,
     PrivateAttr,
+    field_serializer,
+    field_validator,
+    model_validator,
 )
-import xarray as xr
+
+from cubio.cube_size_tools import CubeSize
+from cubio.geotools.models import GeotransformModel
 
 # Local Imports
 from cubio.types import (
-    NumpyDType,
     CubeArrayFormat,
-    is_valid_cubearrayformat,
+    NumpyDType,
     RasterioProfile,
+    is_valid_cubearrayformat,
 )
-from cubio.geotools.models import GeotransformModel
-from cubio.cube_size_tools import CubeSize
 
 # Sub-package Imports
 from .builder import ContextBuilder
@@ -175,15 +175,13 @@ class CubeContext(BaseModel):
         )
 
     @overload
-    def get_measurement_idx(
-        self, value: Union[list[float], list[int]]
-    ) -> list[int]: ...
+    def get_measurement_idx(self, value: list[float]) -> list[int]: ...
     @overload
-    def get_measurement_idx(self, value: Union[float, int]) -> int: ...
+    def get_measurement_idx(self, value: float) -> int: ...
 
     def get_measurement_idx(
-        self, value: Union[float, int, list[float], list[int]]
-    ) -> Union[int, list[int]]:
+        self, value: float | list[float]
+    ) -> int | list[int]:
         """
         Returns the index or indices of the measurement value(s) that are\
         closest to the provided value(s).
@@ -258,7 +256,7 @@ class CubeContext(BaseModel):
         width: int,
         crs: str,
         geotransform: GeotransformModel,
-        nodata: float | int,
+        nodata: float,
         interleave: CubeArrayFormat = "BIL",
         dtype: NumpyDType = NumpyDType.FLOAT32,
     ) -> Self:

@@ -4,25 +4,22 @@ The core of the CubeData object.
 
 from __future__ import annotations
 
-# Built-Ins
-from typing import Optional
+import numpy as np
 
 # Dependencies
 import xarray as xr
-import numpy as np
+
+from cubio.cube_dims import CubeDims
+from cubio.cube_size_tools import CubeSize, get_cube_size
+from cubio.geotools.models import GeotransformModel
 
 # Package-Level Imports
-from cubio.types import (
-    LabelLike,
-    CubeArrayFormat,
-    FORMAT_INDICES,
-)
-from cubio.geotools.models import GeotransformModel
-from cubio.cube_size_tools import get_cube_size, CubeSize
-from cubio.cube_dims import CubeDims
+from cubio.types import FORMAT_INDICES, CubeArrayFormat, LabelLike
 
 # SubPackage-Level Imports
-from .validation import array_is_set, array_dims_match
+from .validation import array_dims_match, array_is_set
+
+default_cubedims = CubeDims.default()
 
 
 class CubeDataCore:
@@ -65,10 +62,10 @@ class CubeDataCore:
         name: str,
         format: CubeArrayFormat,
         *,
-        cube_dims: CubeDims = CubeDims.default(),
-        geotransform: Optional[GeotransformModel] = None,
-        crs: Optional[str] = None,
-        nodata: float | int = -999,
+        cube_dims: CubeDims = default_cubedims,
+        geotransform: GeotransformModel | None = None,
+        crs: str | None = None,
+        nodata: float = -999,
     ) -> None:
         self.name: str = name  # Name of the Cube
         self._gtrans = geotransform  # Geotransform, if there is one.
@@ -80,9 +77,9 @@ class CubeDataCore:
         self.fmt = self._fmt
 
         self._array: xr.DataArray | None = None
-        self._xcoords: Optional[LabelLike] = None
-        self._ycoords: Optional[LabelLike] = None
-        self._zcoords: Optional[LabelLike] = None
+        self._xcoords: LabelLike | None = None
+        self._ycoords: LabelLike | None = None
+        self._zcoords: LabelLike | None = None
 
         self.cube_dims = cube_dims
         self._shape: CubeSize | None = None
@@ -206,11 +203,11 @@ class CubeDataCore:
 
     def update_cube_dims(
         self,
-        cube_dims: Optional[CubeDims] = None,
+        cube_dims: CubeDims | None = None,
         *,
-        vdim_name: Optional[str] = None,
-        hdim_name: Optional[str] = None,
-        zdim_name: Optional[str] = None,
+        vdim_name: str | None = None,
+        hdim_name: str | None = None,
+        zdim_name: str | None = None,
     ) -> None:
         arr = array_is_set(self._array)
         if cube_dims is None:

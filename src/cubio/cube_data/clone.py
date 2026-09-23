@@ -5,8 +5,8 @@ Adds cloning functionality to the CubeData class.
 """
 
 # Built-Ins
-from typing import Self, Optional
 from copy import deepcopy
+from typing import Self
 
 import xarray as xr
 
@@ -27,9 +27,9 @@ class CloneMixIn(CubeDataCore):
 
     def with_data(
         self,
-        new_data: Optional[xr.DataArray] = None,
-        new_gtrans: Optional[GeotransformModel] = None,
-        new_crs: Optional[str] = None,
+        new_data: xr.DataArray | None = None,
+        new_gtrans: GeotransformModel | None = None,
+        new_crs: str | None = None,
     ) -> Self:
         new_cubedata = deepcopy(self)
         if new_gtrans is not None:
