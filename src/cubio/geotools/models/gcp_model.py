@@ -148,11 +148,13 @@ class GCPGroup(BaseModel):
     def write_csv(self, fp: Path | str) -> None:
         with open(Path(fp).with_suffix(".csv"), "w") as f:
             f.write("Index, Pixel Row, Pixel Column, Map X, Map Y, ID\n")
-            for n, i in enumerate(self.gcp_list):
-                f.write(
+            f.writelines(
+                [
                     f"{n}, {i.pixel_row}, {i.pixel_column}, {i.map_x},"
                     f" {i.map_y}, {i.id}\n"
-                )
+                    for n, i in enumerate(self.gcp_list)
+                ]
+            )
 
     def __add__(self, value: Self) -> Self:
         for i in value.gcp_list:
