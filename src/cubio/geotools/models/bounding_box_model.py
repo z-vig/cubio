@@ -1,17 +1,17 @@
-from pydantic import BaseModel, Field
-import fiona  # type: ignore
-from shapely.geometry import Polygon, mapping  # type: ignore
 from pathlib import Path
-from uuid import UUID, uuid4
 from typing import Literal
+from uuid import UUID, uuid4
+
+import fiona  # type: ignore
+from pydantic import BaseModel, Field
+from shapely.geometry import Polygon, mapping  # type: ignore
+
 from cubio.types import BBoxDict
 
 from .point_model import PointModel
 
 
-def todms(
-    dd: float, coord_type: Literal["lon", "lat"], precision: int = 0
-) -> str:
+def todms(dd: float, coord_type: Literal["lon", "lat"], precision: int = 0) -> str:
     """
     Convert decimal degrees (-180..180) to DMS with N/S/E/W.
 
@@ -56,9 +56,7 @@ class BoundingBoxModel(BaseModel):
     top: float = Field(
         ..., description="The top (maximum y) coordinate of the bounding box."
     )
-    name: str = Field(
-        ..., description="A name or identifier for the bounding box."
-    )
+    name: str = Field(..., description="A name or identifier for the bounding box.")
     id: UUID = Field(
         default_factory=uuid4,
         description="A unique identifier for the bounding box.",
@@ -114,10 +112,7 @@ class BoundingBoxModel(BaseModel):
         )
 
     def as_csv_row(self) -> str:
-        return (
-            f"{self.name}, {self.left}, {self.bottom}, {self.right}, "
-            f"{self.top}\n"
-        )
+        return f"{self.name}, {self.left}, {self.bottom}, {self.right}, {self.top}\n"
 
     def as_extent(
         self, mode: Literal["TopLeft", "BottomLeft"] = "BottomLeft"
@@ -194,16 +189,13 @@ def to_shapefile(
 def to_csv(bbox: list[BoundingBoxModel], dst_fp: Path | str) -> None:
     with open(Path(dst_fp).with_suffix(".csv"), "w") as f:
         f.write(
-            "Region, Left_Longitude, Bottom_Latitude, Right_Longitude, "
-            "Top_Latitude\n"
+            "Region, Left_Longitude, Bottom_Latitude, Right_Longitude, Top_Latitude\n"
         )
         for i in bbox:
             f.write(i.as_csv_row())
 
 
-def _bboxes_are_unique(
-    bbox1: BoundingBoxModel, bbox2: BoundingBoxModel
-) -> bool:
+def _bboxes_are_unique(bbox1: BoundingBoxModel, bbox2: BoundingBoxModel) -> bool:
     if (
         bbox1.left == bbox2.left
         and bbox1.right == bbox2.right

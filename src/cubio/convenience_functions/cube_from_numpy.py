@@ -6,6 +6,7 @@ import xarray as xr
 
 from cubio.cube_context import CubeContext
 from cubio.cube_data import CubeData
+from cubio.cube_dims import CubeDims
 from cubio.geotools.models import GeotransformModel
 from cubio.types import FORMAT_INDICES, CubeArrayFormat, NumpyDType
 
@@ -71,6 +72,7 @@ def cube_from_numpy(
     *,
     name: str | None = None,
     crs: str | None = None,
+    cube_dims: CubeDims | None = None,
     gtrans: GeotransformModel | None = None,
     nodata: float = -999.0,
     measvals: list[float] | Literal["default"] | None = None,
@@ -118,9 +120,7 @@ def cube_from_numpy(
         }
         missing = [name for name, value in values.items() if value is None]
         if len(missing) > 0:
-            raise ValueError(
-                "Missing required aruments: " + ", ".join(missing)
-            )
+            raise ValueError("Missing required aruments: " + ", ".join(missing))
         assert name is not None
         assert crs is not None
         assert gtrans is not None
@@ -144,7 +144,11 @@ def cube_from_numpy(
         bbl,
     )
     cc._retrieval_path = "NoRetrieval"
-    cd = CubeData(cc.name, format)
+
+    if cube_dims is None:
+        cube_dims = CubeDims.default()
+
+    cd = CubeData(cc.name, format, cube_dims=cube_dims)
     cd.array = arr.assign_coords({cd.cube_dims.zdim: cc.measurement_values})
     cd.geotransform = gtrans
 

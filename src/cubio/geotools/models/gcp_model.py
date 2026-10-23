@@ -1,27 +1,21 @@
 # Built-Ins
 import re
 from pathlib import Path
-from typing_extensions import Self
+from typing import Self
 from uuid import UUID, uuid4
 
 # Dependencies
 import numpy as np
-from pydantic import BaseModel, Field
 import xarray as xr
+from pydantic import BaseModel, Field
 
 
 class GroundControlPoint(BaseModel):
-    pixel_row: float = Field(
-        ..., description="Pixel row coordinate of the GCP"
-    )
-    pixel_column: float = Field(
-        ..., description="Pixel column coordinate of the GCP"
-    )
+    pixel_row: float = Field(..., description="Pixel row coordinate of the GCP")
+    pixel_column: float = Field(..., description="Pixel column coordinate of the GCP")
     map_x: float = Field(..., description="Map x coordinate of the GCP")
     map_y: float = Field(..., description="Map y coordinate of the GCP")
-    id: UUID = Field(
-        default_factory=uuid4, description="Unique identifier for the GCP"
-    )
+    id: UUID = Field(default_factory=uuid4, description="Unique identifier for the GCP")
 
 
 class ImageOffset(BaseModel):
@@ -67,9 +61,7 @@ class GCPGroup(BaseModel):
 
     @classmethod
     def from_txt(cls, file_path: Path | str, headerrows: int = 7) -> Self:
-        data = np.loadtxt(
-            file_path, dtype="<U36", skiprows=headerrows, delimiter=","
-        )
+        data = np.loadtxt(file_path, dtype="<U36", skiprows=headerrows, delimiter=",")
         good_cols = []
         for i in range(data.shape[1]):
             if np.all(data[:, i] == " "):
@@ -98,9 +90,7 @@ class GCPGroup(BaseModel):
         header = file_content[slice(*test.span())]
         header_lines = header.split("\n")
 
-        search_list = [
-            re.search(r"([\s\S]*?):([\s\S]*)", i) for i in header_lines[:-1]
-        ]
+        search_list = [re.search(r"([\s\S]*?):([\s\S]*)", i) for i in header_lines[:-1]]
         header_dict: dict[str, int] = {}
         for item in search_list:
             if item is not None:

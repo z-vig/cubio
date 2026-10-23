@@ -87,12 +87,8 @@ class GeotransformModel(BaseModel):
         height: int,
         width: int,
     ) -> Self:
-        upper_left_pt = PointModel(
-            x=upper_left_longitude, y=upper_left_latitiude
-        )
-        lower_right_pt = PointModel(
-            x=lower_right_longitude, y=lower_right_latitude
-        )
+        upper_left_pt = PointModel(x=upper_left_longitude, y=upper_left_latitiude)
+        lower_right_pt = PointModel(x=lower_right_longitude, y=lower_right_latitude)
         xres = abs(upper_left_pt.x - lower_right_pt.x) / width
         yres = abs(upper_left_pt.y - lower_right_pt.y) / height
         return cls(
@@ -141,12 +137,8 @@ class GeotransformModel(BaseModel):
         convention: Literal["globe", "hemi"] = "hemi",
     ) -> PointModel:
         """Convert a pixel coordinate point to a map coordinate point."""
-        xmap = (
-            self.upperleft.x + xpixel * self.xres + ypixel * self.row_rotation
-        )
-        ymap = (
-            self.upperleft.y + ypixel * self.yres + xpixel * self.col_rotation
-        )
+        xmap = self.upperleft.x + xpixel * self.xres + ypixel * self.row_rotation
+        ymap = self.upperleft.y + ypixel * self.yres + xpixel * self.col_rotation
 
         if (convention == "globe") and (xmap < 0):
             xmap += 360
@@ -154,9 +146,7 @@ class GeotransformModel(BaseModel):
 
     def map_to_pixel(self, xmap: float, ymap: float) -> PointModel:
         """Convert a map coordinate point to a pixel coordinate point."""
-        _scaler = (self.xres * self.yres) - (
-            self.col_rotation * self.row_rotation
-        )
+        _scaler = (self.xres * self.yres) - (self.col_rotation * self.row_rotation)
         xpixel = (
             (self.yres * xmap)
             - (self.upperleft.x * self.yres)
