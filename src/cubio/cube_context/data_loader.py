@@ -6,6 +6,7 @@ import dask.array as dsk_array
 import numpy as np
 import tifffile as tiff
 import xarray as xr
+
 from cubio.cube_data import CubeData
 from cubio.cube_dims import CubeDims
 from cubio.types import (
@@ -18,9 +19,7 @@ from cubio.types import (
 
 from .cube_context import CubeContext
 
-type DataLoaderFunction = Callable[
-    [Path, CubeDims, CubeData, CubeContext], None
-]
+type DataLoaderFunction = Callable[[Path, CubeDims, CubeData, CubeContext], None]
 
 DEFAULT_CUBEDIMS = CubeDims.default()
 
@@ -78,7 +77,7 @@ def load_gtiff(
         da = xr.DataArray(darr, dims=("Ydim", "Xdim", "Zdim"))
     else:
         raise ValueError(
-            "Loaded data has an invalid number of dimensions: " f"{darr.ndim}."
+            f"Loaded data has an invalid number of dimensions: {darr.ndim}."
         )
     da = da.where(da != nodata, np.nan)
     empty_cube_data.array = da
@@ -115,13 +114,9 @@ class CubeDataLoaderValidator:
         data file path.
         """
         load_from: Path
-        if (search_dir is not None) and (
-            self.cc._retrieval_path == "NoRetrieval"
-        ):
+        if (search_dir is not None) and (self.cc._retrieval_path == "NoRetrieval"):
             load_from = Path(search_dir)
-        elif (self.cc.retrieval_path != "NoRetrieval") and (
-            search_dir is None
-        ):
+        elif (self.cc.retrieval_path != "NoRetrieval") and (search_dir is None):
             load_from = Path(self.cc.retrieval_path).parent
         else:
             raise ValueError(
@@ -137,9 +132,7 @@ class CubeDataLoaderValidator:
     def image_suffix(self, image_data_file: Path) -> ImageSuffix:
         interleave_test = suffix_to_format_map.get(image_data_file.suffix)
 
-        if (interleave_test is not None) and (
-            interleave_test != self.cc.interleave
-        ):
+        if (interleave_test is not None) and (interleave_test != self.cc.interleave):
             raise ValueError(
                 f"Loaded data ({image_data_file}) does not match the"
                 f"registered interleave ({self.cc.interleave})"
@@ -187,9 +180,7 @@ class CubeDataLoader:
                 if is_valid_image_suffix(suff):
                     candidate_image_data_files.append((i, suff))
 
-        candidate_image_data_files.sort(
-            key=lambda item: image_suffix_priority[item[1]]
-        )
+        candidate_image_data_files.sort(key=lambda item: image_suffix_priority[item[1]])
 
         image_data_file = candidate_image_data_files[0][0]
 

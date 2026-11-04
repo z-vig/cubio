@@ -1,18 +1,19 @@
+import shutil
 from pathlib import Path
 
-from cubio.types import RasterioProfile
-import rasterio as rio  # type: ignore
 import numpy as np
-import shutil
+import rasterio as rio  # type: ignore
+
+from cubio.types import RasterioProfile
 
 from .cube_context import CubeContext
 from .envi_hdr_tools import (
-    replace_shape_fields,
-    replace_hdr_band_names,
-    replace_hdr_description,
+    extract_hdr_bbl,
     extract_hdr_wavelength_units,
     extract_hdr_wavelengths,
-    extract_hdr_bbl,
+    replace_hdr_band_names,
+    replace_hdr_description,
+    replace_shape_fields,
 )
 
 
@@ -22,22 +23,18 @@ class EnviHeaderWriter:
     def __init__(self, cube_context: CubeContext) -> None:
         self.cc = cube_context
 
-    def _validate_savefp(
-        self, dst_fp: Path | str, use_image_name: bool
-    ) -> Path:
+    def _validate_savefp(self, dst_fp: Path | str, use_image_name: bool) -> Path:
         """Validates save path for HDR file."""
         savefp = Path(dst_fp)
 
         # Adding suffix based on the use_image_name option.
         if use_image_name:
             if savefp.is_dir():
-                savefp = Path(savefp, self.cc.data_filename).with_suffix(
+                savefp = Path(savefp, self.cc.data_filename).with_suffix(".hdr")
+            else:
+                savefp = savefp.with_name(str(self.cc.data_filename)).with_suffix(
                     ".hdr"
                 )
-            else:
-                savefp = savefp.with_name(
-                    str(self.cc.data_filename)
-                ).with_suffix(".hdr")
         else:
             savefp = savefp.with_suffix(".hdr")
 
@@ -78,19 +75,13 @@ class EnviHeaderWriter:
                 == "Wavelength Units not found."
             ):
                 f.write(f"wavelength units = {self.cc.measurement_units}\n")
-            if (
-                extract_hdr_wavelengths(autogen_hdr_fp)
-                == "Wavelengths not found."
-            ):
+            if extract_hdr_wavelengths(autogen_hdr_fp) == "Wavelengths not found.":
                 f.write(
                     "wavelength = "
-                    f"{{{",".join([str(i) for i in self.cc.measurement_values])}}}\n"  # noqa
+                    f"{{{','.join([str(i) for i in self.cc.measurement_values])}}}\n"  # noqa
                 )
             if extract_hdr_bbl(autogen_hdr_fp) == "No BBL Found":
-                f.write(
-                    "bbl = "
-                    f"{{{",".join([str(i) for i in self.cc.bad_bands])}}}\n"
-                )
+                f.write(f"bbl = {{{','.join([str(i) for i in self.cc.bad_bands])}}}\n")
 
     def to_file(self, dst: Path | str, use_image_name: bool = True) -> None:
         """

@@ -30,6 +30,7 @@ dependencies = [
     "types-geopandas (>=1.1.2.20260120,<2.0.0.0)",
     "numcodecs (==0.15.1)",
     "types-shapely (>=2.1.0.20260408,<3.0.0.0)",
+    "astropy>=8.0.2",
 ]
 
 
