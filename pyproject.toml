@@ -40,5 +40,6 @@ build-backend = "poetry.core.masonry.api"
 
 [dependency-groups]
 dev = [
+    "matplotlib>=3.11.2",
     "twine>=7.0.0",
 ]
