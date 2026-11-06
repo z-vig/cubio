@@ -1,12 +1,11 @@
 # Built-ins
-from typing import Literal
+from typing import Literal, Self
 
 import numpy as np
-from affine import Affine  # type: ignore
+from affine import Affine
 
 # Dependencies
 from pydantic import BaseModel
-from typing_extensions import Self
 
 from .bounding_box_model import BoundingBoxModel
 from .point_model import PointModel
